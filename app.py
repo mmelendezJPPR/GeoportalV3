@@ -64,17 +64,34 @@ logging.basicConfig(
     ]
 )
 
-# Initialize database
-conn = sqlite3.connect(DB_FILE)
-conn.execute('''CREATE TABLE IF NOT EXISTS solicitudes (
-    id TEXT PRIMARY KEY,
-    feature_id TEXT,
-    user TEXT,
-    text TEXT,
-    file_path TEXT,
-    created_at TEXT
-)''')
-conn.close()
+def init_database():
+    """Initialize database - create directories and tables if they don't exist"""
+    try:
+        # Crear directorio de la base de datos si no existe
+        db_dir = os.path.dirname(DB_FILE)
+        if db_dir:
+            os.makedirs(db_dir, exist_ok=True)
+        
+        # Crear tabla si no existe
+        conn = sqlite3.connect(DB_FILE)
+        conn.execute('''CREATE TABLE IF NOT EXISTS solicitudes (
+            id TEXT PRIMARY KEY,
+            feature_id TEXT,
+            user TEXT,
+            text TEXT,
+            file_path TEXT,
+            created_at TEXT
+        )''')
+        conn.close()
+        return True
+    except Exception as e:
+        logging.error(f"Error inicializando base de datos: {e}")
+        return False
+
+def get_db_connection():
+    """Get database connection, initializing if necessary"""
+    init_database()  # Asegurar que la DB existe
+    return sqlite3.connect(DB_FILE)
 
 def validate_file_security(file):
     """Validar archivo por seguridad - detectar archivos corruptos o maliciosos"""
@@ -170,6 +187,25 @@ app.config.update({
     'DEBUG': config['DEBUG']
 })
 
+# Crear directorios necesarios al inicializar la app
+def create_directories():
+    """Crear directorios necesarios para la aplicación"""
+    directories = [
+        config['UPLOAD_FOLDER'],
+        'logs',
+        os.path.dirname(DB_FILE) if os.path.dirname(DB_FILE) else None
+    ]
+    
+    for directory in directories:
+        if directory:
+            try:
+                os.makedirs(directory, exist_ok=True)
+            except Exception as e:
+                print(f"Warning: No se pudo crear directorio {directory}: {e}")
+
+# Crear directorios al importar el módulo
+create_directories()
+
 @app.route("/")
 def index():
     return render_template("index.html")
@@ -186,7 +222,7 @@ def geojson():
 
 @app.route("/comments/<feature_id>", methods=["GET"])
 def get_comments(feature_id):
-    conn = sqlite3.connect(DB_FILE)
+    conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute("SELECT id, feature_id, user, text, file_path, created_at FROM solicitudes WHERE feature_id = ?", (feature_id,))
     rows = cursor.fetchall()
@@ -246,7 +282,7 @@ def post_comment():
     comment_id = uuid.uuid4().hex
     created_at = datetime.utcnow().isoformat()
 
-    conn = sqlite3.connect(DB_FILE)
+    conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute("INSERT INTO solicitudes (id, feature_id, user, text, file_path, created_at) VALUES (?, ?, ?, ?, ?, ?)",
                    (comment_id, feature_id, user, text, file_path, created_at))
@@ -271,7 +307,7 @@ def get_all_comments():
                 if feature_uid:
                     feature_titles[feature_uid] = title
     
-    conn = sqlite3.connect(DB_FILE)
+    conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute("SELECT id, feature_id, user, text, file_path, created_at FROM solicitudes ORDER BY created_at DESC")
     rows = cursor.fetchall()
