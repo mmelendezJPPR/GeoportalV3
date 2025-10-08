@@ -1,0 +1,29 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "feature_uid": "feat-001",
+        "title": "Centro de San Juan",
+        "description": "Zona histórica con alto valor cultural."
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [-66.1057, 18.4655]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "feature_uid": "feat-002",
+        "title": "Bosque Estatal de Piñones",
+        "description": "Área natural protegida cercana a la costa."
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [-65.9918, 18.4500]
+      }
+    }
+  ]
+}

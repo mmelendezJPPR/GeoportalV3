@@ -1,0 +1,844 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Panel de Administración - Solicitudes</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+  <style>
+    :root {
+      --primary-color: #2f587a;
+      --primary-dark: #284d7e;
+      --secondary-color: #f8fafc;
+      --accent-color: #284d7e;
+      --warning-color: #f59e0b;
+      --danger-color: #ef4444;
+      --text-primary: #1f2937;
+      --text-secondary: #6b7280;
+      --border-color: #e5e7eb;
+      --background: #f9fafb;
+      --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+      --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+      --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+      --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
+      --radius-sm: 0.375rem;
+      --radius-md: 0.5rem;
+      --radius-lg: 0.75rem;
+      --radius-xl: 1rem;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: var(--background);
+      color: var(--text-primary);
+      line-height: 1.6;
+    }
+
+    /* Header */
+    .header {
+      background: rgba(255, 255, 255, 0.95);
+      backdrop-filter: blur(20px);
+      border-bottom: 1px solid var(--border-color);
+      padding: 1.5rem 2rem;
+      box-shadow: var(--shadow-sm);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+
+    .header-content {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      max-width: 1400px;
+      margin: 0 auto;
+    }
+
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      font-weight: 700;
+      font-size: 1.5rem;
+      color: var(--primary-color);
+    }
+
+    .logo i {
+      font-size: 2rem;
+    }
+
+    .header-stats {
+      display: flex;
+      gap: 2rem;
+      align-items: center;
+    }
+
+    .stat-item {
+      text-align: center;
+    }
+
+    .stat-number {
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: var(--primary-color);
+    }
+
+    .stat-label {
+      font-size: 0.75rem;
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    /* Container principal */
+    .container {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 2rem;
+    }
+
+    /* Filtros */
+    .filters {
+      background: rgba(255, 255, 255, 0.95);
+      backdrop-filter: blur(20px);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-xl);
+      padding: 1.5rem;
+      margin-bottom: 2rem;
+      box-shadow: var(--shadow-md);
+    }
+
+    .filters-row {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 1rem;
+      align-items: end;
+    }
+
+    .filter-group {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+
+    .filter-label {
+      font-weight: 500;
+      font-size: 0.875rem;
+      color: var(--text-primary);
+    }
+
+    .filter-input {
+      padding: 0.75rem 1rem;
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-lg);
+      font-size: 0.875rem;
+      transition: all 0.2s ease;
+      background: white;
+    }
+
+    .filter-input:focus {
+      outline: none;
+      border-color: var(--primary-color);
+      box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+      padding: 0.75rem 1.5rem;
+      border: none;
+      border-radius: var(--radius-lg);
+      font-weight: 500;
+      font-size: 0.875rem;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      text-decoration: none;
+    }
+
+    .btn-primary {
+      background: var(--primary-color);
+      color: white;
+      box-shadow: var(--shadow-sm);
+    }
+
+    .btn-primary:hover {
+      background: var(--primary-dark);
+      transform: translateY(-1px);
+      box-shadow: var(--shadow-md);
+    }
+
+    .btn-secondary {
+      background: white;
+      color: var(--text-secondary);
+      border: 1px solid var(--border-color);
+    }
+
+    .btn-secondary:hover {
+      background: var(--secondary-color);
+      color: var(--text-primary);
+    }
+
+    /* Grid de solicitudes */
+    .requests-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
+      gap: 1.5rem;
+    }
+
+    .request-card {
+      background: rgba(255, 255, 255, 0.95);
+      backdrop-filter: blur(20px);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-xl);
+      padding: 1.5rem;
+      box-shadow: var(--shadow-md);
+      transition: all 0.3s ease;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .request-card:hover {
+      transform: translateY(-4px);
+      box-shadow: var(--shadow-xl);
+    }
+
+    .request-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      margin-bottom: 1rem;
+    }
+
+    .request-user {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    .user-avatar {
+      width: 40px;
+      height: 40px;
+      background: linear-gradient(135deg, var(--primary-color), var(--accent-color));
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      font-weight: 600;
+      font-size: 1.125rem;
+    }
+
+    .user-info h3 {
+      font-weight: 600;
+      color: var(--text-primary);
+      margin-bottom: 0.25rem;
+    }
+
+    .user-date {
+      font-size: 0.75rem;
+      color: var(--text-secondary);
+    }
+
+    .request-status {
+      padding: 0.375rem 0.75rem;
+      border-radius: var(--radius-md);
+      font-size: 0.75rem;
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .status-new {
+      background: rgba(16, 185, 129, 0.1);
+      color: var(--accent-color);
+    }
+
+    .status-pending {
+      background: rgba(245, 158, 11, 0.1);
+      color: var(--warning-color);
+    }
+
+    .status-resolved {
+      background: rgba(99, 102, 241, 0.1);
+      color: var(--primary-color);
+    }
+
+    .request-location {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin-bottom: 1rem;
+      padding: 0.75rem;
+      background: var(--secondary-color);
+      border-radius: var(--radius-lg);
+      border: 1px solid var(--border-color);
+    }
+
+    .request-location i {
+      color: var(--primary-color);
+    }
+
+    .location-text {
+      font-size: 0.875rem;
+      color: var(--text-secondary);
+      font-weight: 500;
+    }
+
+    .request-content {
+      margin-bottom: 1.5rem;
+    }
+
+    .request-text {
+      color: var(--text-secondary);
+      line-height: 1.6;
+      margin-bottom: 1rem;
+    }
+
+    .request-attachment {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.5rem 1rem;
+      background: var(--secondary-color);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-md);
+      color: var(--primary-color);
+      text-decoration: none;
+      font-size: 0.875rem;
+      font-weight: 500;
+      transition: all 0.2s ease;
+    }
+
+    .request-attachment:hover {
+      background: var(--primary-color);
+      color: white;
+      transform: translateY(-1px);
+    }
+
+    .request-actions {
+      display: flex;
+      gap: 0.75rem;
+      margin-top: 1rem;
+    }
+
+    .btn-small {
+      padding: 0.5rem 1rem;
+      font-size: 0.75rem;
+    }
+
+    .btn-success {
+      background: var(--accent-color);
+      color: white;
+    }
+
+    .btn-success:hover {
+      background: #059669;
+    }
+
+    .btn-warning {
+      background: var(--warning-color);
+      color: white;
+    }
+
+    .btn-warning:hover {
+      background: #d97706;
+    }
+
+    /* Estados vacíos */
+    .empty-state {
+      text-align: center;
+      padding: 4rem 2rem;
+      color: var(--text-secondary);
+    }
+
+    .empty-state i {
+      font-size: 4rem;
+      color: var(--border-color);
+      margin-bottom: 1rem;
+    }
+
+    .empty-state h2 {
+      font-size: 1.5rem;
+      font-weight: 600;
+      margin-bottom: 0.5rem;
+      color: var(--text-primary);
+    }
+
+    /* Loading state */
+    .loading {
+      text-align: center;
+      padding: 4rem 2rem;
+    }
+
+    .spinner {
+      width: 40px;
+      height: 40px;
+      border: 4px solid var(--border-color);
+      border-top: 4px solid var(--primary-color);
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+      margin: 0 auto 1rem;
+    }
+
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+      .container {
+        padding: 1rem;
+      }
+
+      .header {
+        padding: 1rem;
+      }
+
+      .header-content {
+        flex-direction: column;
+        gap: 1rem;
+        align-items: flex-start;
+      }
+
+      .header-stats {
+        gap: 1rem;
+      }
+
+      .requests-grid {
+        grid-template-columns: 1fr;
+        gap: 1rem;
+      }
+
+      .filters-row {
+        grid-template-columns: 1fr;
+      }
+
+      .request-actions {
+        flex-direction: column;
+      }
+    }
+
+    /* Notificaciones */
+    .notification {
+      position: fixed;
+      top: 2rem;
+      right: 2rem;
+      background: white;
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-lg);
+      padding: 1rem 1.5rem;
+      box-shadow: var(--shadow-lg);
+      z-index: 1000;
+      transform: translateX(100%);
+      transition: transform 0.3s ease;
+      max-width: 400px;
+    }
+
+    .notification.show {
+      transform: translateX(0);
+    }
+
+    .notification.success {
+      border-left: 4px solid var(--accent-color);
+    }
+
+    .notification.error {
+      border-left: 4px solid var(--danger-color);
+    }
+
+    /* Animaciones */
+    .fade-in {
+      animation: fadeIn 0.5s ease-in;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(20px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+  </style>
+</head>
+<body>
+  <!-- Header -->
+  <header class="header">
+    <div class="header-content">
+      <div class="logo">
+        <img src="/static/JPlogo.png" alt="Logo" style="height: 100px;">
+      </div>
+      <div class="header-stats">
+        <div class="stat-item">
+          <div class="stat-number" id="totalRequests">0</div>
+          <div class="stat-label">Total</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-number" id="newRequests">0</div>
+          <div class="stat-label">Nuevas</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-number" id="pendingRequests">0</div>
+          <div class="stat-label">Pendientes</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-number" id="resolvedRequests">0</div>
+          <div class="stat-label">Resueltas</div>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- Container principal -->
+  <div class="container">
+    <!-- Filtros -->
+    <div class="filters">
+      <div class="filters-row">
+        <div class="filter-group">
+          <label class="filter-label">Buscar por usuario</label>
+          <input type="text" class="filter-input" id="userFilter" placeholder="Nombre del usuario...">
+        </div>
+        <div class="filter-group">
+          <label class="filter-label">Estado</label>
+          <select class="filter-input" id="statusFilter">
+            <option value="">Todos los estados</option>
+            <option value="new">Nuevas</option>
+            <option value="pending">Pendientes</option>
+            <option value="resolved">Resueltas</option>
+          </select>
+        </div>
+        <div class="filter-group">
+          <label class="filter-label">Ubicación</label>
+          <select class="filter-input" id="locationFilter">
+            <option value="">Todas las ubicaciones</option>
+          </select>
+        </div>
+        <div class="filter-group">
+          <label class="filter-label">Fecha</label>
+          <input type="date" class="filter-input" id="dateFilter">
+        </div>
+        <div class="filter-group">
+          <button class="btn btn-primary" onclick="applyFilters()">
+            <i class="fas fa-search"></i>
+            Filtrar
+          </button>
+        </div>
+        <div class="filter-group">
+          <button class="btn btn-secondary" onclick="clearFilters()">
+            <i class="fas fa-times"></i>
+            Limpiar
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Grid de solicitudes -->
+    <div id="requestsContainer">
+      <div class="loading">
+        <div class="spinner"></div>
+        <p>Cargando solicitudes...</p>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let allRequests = [];
+    let filteredRequests = [];
+
+    // Simular datos (en tu implementación real, esto vendría de tu API)
+    const mockRequests = [
+      {
+        comment_id: "1",
+        feature_id: "location_1",
+        user: "María González",
+        text: "Hay un problema con el alumbrado público en esta zona. Las farolas están apagadas desde hace una semana.",
+        file_path: "uploads/streetlight.jpg",
+        created_at: "2025-10-08T10:30:00Z",
+        feature_title: "Plaza Central",
+        status: "new"
+      },
+      {
+        comment_id: "2",
+        feature_id: "location_2",
+        user: "Carlos Rodríguez",
+        text: "Excelente iniciativa de renovación del parque. Los niños están muy contentos con los nuevos juegos.",
+        file_path: "",
+        created_at: "2025-10-07T15:45:00Z",
+        feature_title: "Parque Los Pinos",
+        status: "resolved"
+      },
+      {
+        comment_id: "3",
+        feature_id: "location_1",
+        user: "Ana Silva",
+        text: "La basura se acumula en esta esquina. Necesitamos más contenedores o una recogida más frecuente.",
+        file_path: "uploads/trash_corner.jpg",
+        created_at: "2025-10-06T09:15:00Z",
+        feature_title: "Plaza Central",
+        status: "pending"
+      },
+      {
+        comment_id: "4",
+        feature_id: "location_3",
+        user: "José Martínez",
+        text: "El semáforo está dañado y causa problemas de tráfico en las horas pico. Es urgente repararlo.",
+        file_path: "",
+        created_at: "2025-10-05T18:20:00Z",
+        feature_title: "Intersección Calle Mayor",
+        status: "pending"
+      },
+      {
+        comment_id: "5",
+        feature_id: "location_4",
+        user: "Laura Pérez",
+        text: "Gracias por instalar las nuevas bancas en el parque. Ahora es mucho más cómodo para los visitantes.",
+        file_path: "uploads/new_benches.jpg",
+        created_at: "2025-10-04T12:00:00Z",
+        feature_title: "Parque Riverside",
+        status: "resolved"
+      }
+    ];
+
+    // Inicializar aplicación
+    document.addEventListener('DOMContentLoaded', function() {
+      loadRequests();
+      populateLocationFilter();
+    });
+
+    function loadRequests() {
+      // Cargar datos reales desde la API
+      fetch('/api/comments')
+        .then(r => r.json())
+        .then(data => {
+          allRequests = data;
+          filteredRequests = [...allRequests];
+          updateStats();
+          renderRequests();
+          populateLocationFilter();
+        })
+        .catch(err => {
+          console.error('Error loading requests:', err);
+          // Fallback a datos mock para desarrollo
+          allRequests = mockRequests;
+          filteredRequests = [...allRequests];
+          updateStats();
+          renderRequests();
+        });
+    }
+
+    function updateStats() {
+      const total = allRequests.length;
+      const newCount = allRequests.filter(r => r.status === 'new').length;
+      const pending = allRequests.filter(r => r.status === 'pending').length;
+      const resolved = allRequests.filter(r => r.status === 'resolved').length;
+
+      document.getElementById('totalRequests').textContent = total;
+      document.getElementById('newRequests').textContent = newCount;
+      document.getElementById('pendingRequests').textContent = pending;
+      document.getElementById('resolvedRequests').textContent = resolved;
+    }
+
+    function populateLocationFilter() {
+      const locations = [...new Set(allRequests.map(r => r.feature_title))];
+      const select = document.getElementById('locationFilter');
+      
+      locations.forEach(location => {
+        const option = document.createElement('option');
+        option.value = location;
+        option.textContent = location;
+        select.appendChild(option);
+      });
+    }
+
+    function renderRequests() {
+      const container = document.getElementById('requestsContainer');
+      
+      if (filteredRequests.length === 0) {
+        container.innerHTML = `
+          <div class="empty-state">
+            <i class="fas fa-inbox"></i>
+            <h2>No hay solicitudes</h2>
+            <p>No se encontraron solicitudes que coincidan con los filtros aplicados.</p>
+          </div>
+        `;
+        return;
+      }
+
+      const html = `
+        <div class="requests-grid">
+          ${filteredRequests.map(request => createRequestCard(request)).join('')}
+        </div>
+      `;
+      
+      container.innerHTML = html;
+    }
+
+    function createRequestCard(request) {
+      const userInitial = request.user.charAt(0).toUpperCase();
+      const formattedDate = formatDate(request.created_at);
+      const statusClass = `status-${request.status}`;
+      const statusText = {
+        'new': 'Nueva',
+        'pending': 'Pendiente',
+        'resolved': 'Resuelta'
+      }[request.status];
+
+      return `
+        <div class="request-card fade-in">
+          <div class="request-header">
+            <div class="request-user">
+              <div class="user-avatar">${userInitial}</div>
+              <div class="user-info">
+                <h3>${request.user}</h3>
+                <div class="user-date">${formattedDate}</div>
+              </div>
+            </div>
+            <div class="request-status ${statusClass}">
+              ${statusText}
+            </div>
+          </div>
+          
+          <div class="request-location">
+            <i class="fas fa-map-marker-alt"></i>
+            <span class="location-text">${request.feature_title}</span>
+          </div>
+          
+          <div class="request-content">
+            <div class="request-text">${request.text}</div>
+            ${request.file_path ? `
+              <a href="/${request.file_path}" target="_blank" class="request-attachment">
+                <i class="fas fa-paperclip"></i>
+                Ver adjunto
+              </a>
+            ` : ''}
+          </div>
+          
+          <div class="request-actions">
+            ${request.status === 'new' ? `
+              <button class="btn btn-warning btn-small" onclick="updateStatus('${request.comment_id}', 'pending')">
+                <i class="fas fa-clock"></i>
+                Marcar pendiente
+              </button>
+            ` : ''}
+            ${request.status !== 'resolved' ? `
+              <button class="btn btn-success btn-small" onclick="updateStatus('${request.comment_id}', 'resolved')">
+                <i class="fas fa-check"></i>
+                Marcar resuelta
+              </button>
+            ` : ''}
+            <button class="btn btn-secondary btn-small" onclick="viewOnMap('${request.feature_id}')">
+              <i class="fas fa-map"></i>
+              Ver en mapa
+            </button>
+          </div>
+        </div>
+      `;
+    }
+
+    function updateStatus(commentId, newStatus) {
+      // Actualizar estado en el servidor
+      fetch(`/api/comments/${commentId}/status`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ status: newStatus })
+      })
+      .then(r => r.json())
+      .then(response => {
+        if (response.status === 'ok') {
+          // Actualizar localmente
+          const request = allRequests.find(r => r.comment_id === commentId);
+          if (request) {
+            request.status = newStatus;
+            filteredRequests = [...allRequests];
+            updateStats();
+            renderRequests();
+            showNotification(`Solicitud marcada como ${newStatus === 'pending' ? 'pendiente' : 'resuelta'}`, 'success');
+          }
+        } else {
+          showNotification('Error al actualizar el estado', 'error');
+        }
+      })
+      .catch(err => {
+        console.error('Error updating status:', err);
+        showNotification('Error de conexión', 'error');
+      });
+    }
+
+    function viewOnMap(featureId) {
+      // Redirigir al mapa principal con el feature seleccionado
+      window.open(`/?feature=${featureId}`, '_blank');
+    }
+
+    function applyFilters() {
+      const userFilter = document.getElementById('userFilter').value.toLowerCase();
+      const statusFilter = document.getElementById('statusFilter').value;
+      const locationFilter = document.getElementById('locationFilter').value;
+      const dateFilter = document.getElementById('dateFilter').value;
+
+      filteredRequests = allRequests.filter(request => {
+        const matchUser = !userFilter || request.user.toLowerCase().includes(userFilter);
+        const matchStatus = !statusFilter || request.status === statusFilter;
+        const matchLocation = !locationFilter || request.feature_title === locationFilter;
+        const matchDate = !dateFilter || request.created_at.startsWith(dateFilter);
+
+        return matchUser && matchStatus && matchLocation && matchDate;
+      });
+
+      renderRequests();
+    }
+
+    function clearFilters() {
+      document.getElementById('userFilter').value = '';
+      document.getElementById('statusFilter').value = '';
+      document.getElementById('locationFilter').value = '';
+      document.getElementById('dateFilter').value = '';
+      
+      filteredRequests = [...allRequests];
+      renderRequests();
+    }
+
+    function formatDate(dateString) {
+      const date = new Date(dateString);
+      return date.toLocaleString('es-ES', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+    }
+
+    function showNotification(message, type = 'success') {
+      const notification = document.createElement('div');
+      notification.className = `notification ${type}`;
+      notification.innerHTML = `
+        <div style="display: flex; align-items: center; gap: 0.75rem;">
+          <i class="fas fa-${type === 'success' ? 'check-circle' : 'exclamation-triangle'}"></i>
+          <span>${message}</span>
+        </div>
+      `;
+      
+      document.body.appendChild(notification);
+      
+      setTimeout(() => notification.classList.add('show'), 100);
+      setTimeout(() => {
+        notification.classList.remove('show');
+        setTimeout(() => document.body.removeChild(notification), 300);
+      }, 3000);
+    }
+
+    // Actualizar datos cada 30 segundos
+    setInterval(() => {
+      loadRequests();
+    }, 30000);
+  </script>
+</body>
+</html>
