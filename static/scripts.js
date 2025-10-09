@@ -201,6 +201,12 @@ function resetForm() {
   // Enfocar el primer campo
   const nameInput = document.getElementById('name');
   if (nameInput) nameInput.focus();
+  
+  // Ocultar progreso de seguridad si está visible
+  const progressDiv = document.getElementById('securityProgress');
+  if (progressDiv) {
+    progressDiv.style.display = 'none';
+  }
 }
 
 // ========== INICIALIZACIÓN DE CONTROLES DEL FORMULARIO ==========
@@ -337,53 +343,125 @@ function handleUploadSubmit(event) {
     }
   }
   
+  // MOSTRAR PROGRESO INMEDIATAMENTE (ANTES DE CUALQUIER COSA)
+  showSecurityProgress();
+  showNotification('🔒 Iniciando escaneo de seguridad del archivo...', 'info');
+  
   // Cambiar botón a estado de carga
   const submitBtn = form.querySelector('button[type="submit"]');
   const originalText = submitBtn.innerHTML;
-  submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Enviando...';
+  submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Escaneando...';
   submitBtn.disabled = true;
   
-  fetch('/upload', {
-    method: 'POST',
-    body: formData
-  })
-  .then(response => response.json())
-  .then(result => {
-    if (result.status === 'ok') {
-      showNotification('¡Solicitud enviada exitosamente!', 'success');
-      
-      // Limpiar formulario después del éxito
-      resetForm();
-      
-      // Agregar marcador permanente en la ubicación de la solicitud
-      const lat = parseFloat(latValue);
-      const lng = parseFloat(lngValue);
-      
-      if (!isNaN(lat) && !isNaN(lng)) {
-        L.marker([lat, lng], {
-          icon: L.divIcon({
-            className: 'user-request-marker',
-            html: '<i class="fas fa-file-alt"></i>',
-            iconSize: [25, 25],
-            iconAnchor: [12, 25]
+  // PASO 1: Escanear archivo PRIMERO
+  const fileInput = document.getElementById('file');
+  if (fileInput && fileInput.files.length > 0) {
+    // Crear FormData solo con el archivo para escaneo
+    const scanFormData = new FormData();
+    scanFormData.append('file', fileInput.files[0]);
+    
+    fetch('/scan-file', {
+      method: 'POST',
+      body: scanFormData
+    })
+    .then(response => response.json())
+    .then(scanResult => {
+      if (scanResult.status === 'ok') {
+        // Archivo aprobado, continuar con progreso de seguridad
+        continueSecurityProgress();
+        
+        // Cambiar botón y enviar formulario completo
+        submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Enviando...';
+        
+        // PASO 2: Enviar formulario completo después de un retraso
+        setTimeout(() => {
+          fetch('/upload', {
+            method: 'POST',
+            body: formData
           })
-        }).addTo(map)
-          .bindPopup('<b>Solicitud enviada</b><br>Tu solicitud ha sido registrada en esta ubicación.');
+          .then(response => response.json())
+          .then(result => {
+            if (result.status === 'ok') {
+              showNotification('¡Solicitud enviada exitosamente!', 'success');
+              
+              // Limpiar formulario después del éxito
+              resetForm();
+              
+              // Agregar marcador permanente en la ubicación de la solicitud
+              const lat = parseFloat(latValue);
+              const lng = parseFloat(lngValue);
+              
+              if (!isNaN(lat) && !isNaN(lng)) {
+                L.marker([lat, lng], {
+                  icon: L.divIcon({
+                    className: 'user-request-marker',
+                    html: '<i class="fas fa-file-alt"></i>',
+                    iconSize: [25, 25],
+                    iconAnchor: [12, 25]
+                  })
+                }).addTo(map)
+                  .bindPopup('<b>Solicitud enviada</b><br>Tu solicitud ha sido registrada en esta ubicación.');
+              }
+              
+            } else {
+              showNotification('Error: ' + (result.error || 'Error desconocido'), 'error');
+            }
+          })
+          .catch(error => {
+            console.error('Error enviando solicitud:', error);
+            showNotification('Error al enviar la solicitud. Por favor, inténtalo de nuevo.', 'error');
+          })
+          .finally(() => {
+            // Restaurar botón
+            submitBtn.innerHTML = originalText;
+            submitBtn.disabled = false;
+            
+            // Ocultar progreso de seguridad
+            hideSecurityProgress();
+          });
+        }, 1000); // Retraso después del escaneo
+        
+      } else {
+        // Archivo rechazado por seguridad - mostrar error en progreso
+        failSecurityProgress(scanResult.error);
+        showNotification('🚫 ' + (scanResult.error || 'Archivo rechazado por seguridad'), 'error');
+        submitBtn.innerHTML = originalText;
+        submitBtn.disabled = false;
+        hideSecurityProgress();
       }
-      
-    } else {
-      showNotification('Error: ' + (result.error || 'Error desconocido'), 'error');
-    }
-  })
-  .catch(error => {
-    console.error('Error enviando solicitud:', error);
-    showNotification('Error al enviar la solicitud. Por favor, inténtalo de nuevo.', 'error');
-  })
-  .finally(() => {
-    // Restaurar botón
-    submitBtn.innerHTML = originalText;
-    submitBtn.disabled = false;
-  });
+    })
+    .catch(error => {
+      console.error('Error escaneando archivo:', error);
+      showNotification('Error al escanear el archivo. Por favor, inténtalo de nuevo.', 'error');
+      submitBtn.innerHTML = originalText;
+      submitBtn.disabled = false;
+      hideSecurityProgress();
+    });
+  } else {
+    // No hay archivo, enviar formulario directamente
+    fetch('/upload', {
+      method: 'POST',
+      body: formData
+    })
+    .then(response => response.json())
+    .then(result => {
+      if (result.status === 'ok') {
+        showNotification('¡Solicitud enviada exitosamente!', 'success');
+        resetForm();
+      } else {
+        showNotification('Error: ' + (result.error || 'Error desconocido'), 'error');
+      }
+    })
+    .catch(error => {
+      console.error('Error enviando solicitud:', error);
+      showNotification('Error al enviar la solicitud. Por favor, inténtalo de nuevo.', 'error');
+    })
+    .finally(() => {
+      submitBtn.innerHTML = originalText;
+      submitBtn.disabled = false;
+      hideSecurityProgress();
+    });
+  }
 }
 
 // ========== FUNCIONES DE CARGA DE DATOS ==========
@@ -427,3 +505,85 @@ function loadExistingComments() {
 document.addEventListener('DOMContentLoaded', function() {
   setTimeout(loadExistingComments, 1000);
 });
+
+// ========== FUNCIONES DE PROGRESO DE SEGURIDAD ==========
+
+function showSecurityProgress() {
+  const progressDiv = document.getElementById('securityProgress');
+  if (progressDiv) {
+    progressDiv.style.display = 'block';
+    
+    // Hacer scroll para asegurar que se vea el progreso
+    progressDiv.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    
+    // Solo mostrar el primer paso como activo
+    updateSecurityStep('step-upload', 'active', '⏳');
+  }
+}
+
+function continueSecurityProgress() {
+  // Completar upload y continuar con escaneo
+  updateSecurityStep('step-upload', 'completed', '✓');
+  
+  setTimeout(() => {
+    updateSecurityStep('step-clamav', 'active', '🔄');
+    setTimeout(() => updateSecurityStep('step-clamav', 'completed', '✓'), 3000);
+  }, 500);
+  
+  setTimeout(() => {
+    updateSecurityStep('step-virustotal', 'active', '🔄');
+    setTimeout(() => updateSecurityStep('step-virustotal', 'completed', '✓'), 3000);
+  }, 4000);
+  
+  setTimeout(() => {
+    updateSecurityStep('step-final', 'active', '🔄');
+    setTimeout(() => updateSecurityStep('step-final', 'completed', '✓'), 2000);
+  }, 7500);
+}
+
+function failSecurityProgress(errorMessage) {
+  // Marcar el primer paso como fallido
+  updateSecurityStep('step-upload', 'error', '❌');
+  
+  // Actualizar el texto del paso para mostrar el error
+  const uploadStep = document.getElementById('step-upload');
+  if (uploadStep) {
+    const stepText = uploadStep.querySelector('.step-text');
+    if (stepText) {
+      stepText.textContent = errorMessage || 'Archivo rechazado';
+    }
+  }
+}
+
+function updateSecurityStep(stepId, status, statusText = '⏳') {
+  const step = document.getElementById(stepId);
+  if (step) {
+    // Remover clases previas
+    step.classList.remove('active', 'completed', 'error');
+    
+    // Añadir nueva clase
+    if (status !== 'pending') {
+      step.classList.add(status);
+    }
+    
+    // Actualizar texto de estado
+    const statusElement = step.querySelector('.step-status');
+    if (statusElement) {
+      statusElement.textContent = statusText;
+    }
+  }
+}
+
+function hideSecurityProgress() {
+  const progressDiv = document.getElementById('securityProgress');
+  if (progressDiv) {
+    setTimeout(() => {
+      progressDiv.style.display = 'none';
+      // Resetear todos los pasos
+      const steps = ['step-upload', 'step-clamav', 'step-virustotal', 'step-final'];
+      steps.forEach(stepId => {
+        updateSecurityStep(stepId, 'pending', '⏳');
+      });
+    }, 5000); // Esperar 5 segundos antes de ocultar
+  }
+}

@@ -68,6 +68,329 @@
           18.37358963524815
         ]
       }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "feature_uid": "point-bf59a958ff0e",
+        "title": "Junta de Planificacion",
+        "name": "Miguel Melendez",
+        "municipality": "Comerío",
+        "entity": "Junta de Planificacion",
+        "comments": "111111",
+        "timestamp": "2025-10-09T18:35:21.765402"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -66.1835289001465,
+          18.390371127297914
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "feature_uid": "point-f735bbb82fc1",
+        "title": "Junta de Planificacion",
+        "name": "Miguel Melendez",
+        "municipality": "Comerío",
+        "entity": "Junta de Planificacion",
+        "comments": "Probando",
+        "timestamp": "2025-10-09T18:41:19.913752"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -66.08327865600587,
+          18.400796057766065
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "feature_uid": "point-12e0559b96a6",
+        "title": "Junta de Planificacion",
+        "name": "Miguel Melendez",
+        "municipality": "Comerío",
+        "entity": "Junta de Planificacion",
+        "comments": "hola",
+        "timestamp": "2025-10-09T18:42:07.875602"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -66.14284515380861,
+          18.363659456286427
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "feature_uid": "point-60baeb82c6d4",
+        "title": "Junta de Planificacion",
+        "name": "Miguel Melendez",
+        "municipality": "Comerío",
+        "entity": "Junta de Planificacion",
+        "comments": "hhhh",
+        "timestamp": "2025-10-09T18:42:29.621850"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -66.11160278320314,
+          18.359418400817347
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "feature_uid": "point-b71ff5022419",
+        "title": "Junta de Planificacion",
+        "name": "Miguel Melendez",
+        "municipality": "Comerío",
+        "entity": "Junta de Planificacion",
+        "comments": "aaa",
+        "timestamp": "2025-10-09T18:46:18.647582"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -66.1950731277466,
+          18.44737093484571
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "feature_uid": "point-897404c28152",
+        "title": "Junta de Planificacion",
+        "name": "Miguel Melendez",
+        "municipality": "Comerío",
+        "entity": "Junta de Planificacion",
+        "comments": "AAAA",
+        "timestamp": "2025-10-09T18:51:21.408292"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -66.18473052978517,
+          18.374737640101674
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "feature_uid": "point-5a27d40624f0",
+        "title": "Junta de Planificacion",
+        "name": "Miguel Melendez",
+        "municipality": "Comerío",
+        "entity": "Junta de Planificacion",
+        "comments": "Prueba",
+        "timestamp": "2025-10-09T18:56:22.492704"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -66.19219779968263,
+          18.365932680217416
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "feature_uid": "point-57800e98894c",
+        "title": "Junta de Planificacion",
+        "name": "Miguel Melendez",
+        "municipality": "Comerío",
+        "entity": "Junta de Planificacion",
+        "comments": "Probando",
+        "timestamp": "2025-10-09T19:05:07.589170"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -66.34128570556642,
+          18.34084919216128
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "feature_uid": "point-3518f9c9535d",
+        "title": "Junta de Planificacion",
+        "name": "Miguel Melendez",
+        "municipality": "Comerío",
+        "entity": "Junta de Planificacion",
+        "comments": "Prueba de Escaneo",
+        "timestamp": "2025-10-09T19:08:00.946289"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -66.28944396972658,
+          18.424916560566604
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "feature_uid": "point-696aeffa3d49",
+        "title": "Junta de Planificacion",
+        "name": "Miguel Melendez",
+        "municipality": "Comerío",
+        "entity": "Junta de Planificacion",
+        "comments": "Probando 2do escaneo",
+        "timestamp": "2025-10-09T19:09:04.271037"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -66.34506225585939,
+          18.051907876438907
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "feature_uid": "point-2c79034da6df",
+        "title": "Junta de Planificacion",
+        "name": "Miguel Melendez",
+        "municipality": "Comerío",
+        "entity": "Junta de Planificacion",
+        "comments": "Probando 3rd escaneo",
+        "timestamp": "2025-10-09T19:14:39.547867"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -67.11959838867189,
+          18.007508734537215
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "feature_uid": "point-a4c41825b415",
+        "title": "Junta de Planificacion",
+        "name": "Miguel Melendez",
+        "municipality": "Camuy",
+        "entity": "Junta de Planificacion",
+        "comments": "Escaneo",
+        "timestamp": "2025-10-09T19:15:35.281895"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -67.12234497070314,
+          18.24504381008182
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "feature_uid": "point-9ef9685cb6de",
+        "title": "Junta de Planificacion",
+        "name": "Miguel Melendez",
+        "municipality": "Comerío",
+        "entity": "Junta de Planificacion",
+        "comments": "Escaneo4",
+        "timestamp": "2025-10-09T19:35:57.544968"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -66.95755004882814,
+          18.39366461831843
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "feature_uid": "point-71430500cecd",
+        "title": "Junta de Planificacion",
+        "name": "Miguel Melendez",
+        "municipality": "Comerío",
+        "entity": "Junta de Planificacion",
+        "comments": "Prueba 5",
+        "timestamp": "2025-10-09T19:39:38.651215"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -66.67739868164064,
+          18.41451344957547
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "feature_uid": "point-7fef9ef5c3f2",
+        "title": "Junta de Planificacion",
+        "name": "Miguel Melendez",
+        "municipality": "Comerío",
+        "entity": "Junta de Planificacion",
+        "comments": "Escaneo 6",
+        "timestamp": "2025-10-09T19:45:27.825709"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -66.92596435546876,
+          18.229432861379006
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "feature_uid": "point-7d3bcd84e7ae",
+        "title": "Junta de Planificacion",
+        "name": "Miguel Melendez",
+        "municipality": "Comerío",
+        "entity": "Junta de Planificacion",
+        "comments": "Prueba 500",
+        "timestamp": "2025-10-09T19:50:00.828860"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -67.09213256835939,
+          18.466624473213518
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "feature_uid": "point-30d080df2a80",
+        "title": "Junta de Planificacion",
+        "name": "Miguel Melendez",
+        "municipality": "Comerío",
+        "entity": "Junta de Planificacion",
+        "comments": "pROBANDO 123",
+        "timestamp": "2025-10-09T20:10:17.586809"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -66.85043334960939,
+          18.007508734537215
+        ]
+      }
     }
   ]
 }

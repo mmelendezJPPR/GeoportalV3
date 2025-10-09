@@ -342,6 +342,105 @@
       color: var(--text-secondary);
     }
 
+    /* Progreso de seguridad */
+    .security-progress {
+      margin-top: 1rem;
+      padding: 1.5rem;
+      background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+      border: 3px solid var(--primary-color);
+      border-radius: var(--radius);
+      font-size: 0.9rem;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+      animation: slideIn 0.3s ease-out;
+    }
+
+    @keyframes slideIn {
+      from {
+        opacity: 0;
+        transform: translateY(-10px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .security-header {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-weight: 700;
+      color: var(--primary-color);
+      margin-bottom: 1rem;
+      font-size: 1.1rem;
+    }
+
+    .security-steps {
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+    }
+
+    .security-step {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 0.75rem;
+      background: white;
+      border-radius: 6px;
+      border: 2px solid #e9ecef;
+      transition: all 0.3s ease;
+    }
+
+    .security-step i {
+      width: 20px;
+      color: var(--primary-color);
+      font-size: 1.1rem;
+    }
+
+    .security-step span {
+      flex: 1;
+      font-weight: 600;
+    }
+
+    .step-status {
+      font-size: 1.4rem;
+      min-width: 28px;
+      text-align: center;
+      font-weight: bold;
+    }
+
+    .security-step.active {
+      background: #e3f2fd;
+      border-color: var(--primary-color);
+      box-shadow: 0 2px 8px rgba(47, 88, 122, 0.2);
+      animation: pulse 1.5s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.02); }
+    }
+
+    .security-step.completed {
+      background: #e8f5e8;
+      border-color: var(--success);
+      box-shadow: 0 2px 8px rgba(16, 185, 129, 0.2);
+    }
+
+    .security-step.completed .step-status {
+      color: var(--success);
+    }
+
+    .security-step.error {
+      background: #ffebee;
+      border-color: var(--error);
+    }
+
+    .security-step.error .step-status {
+      color: var(--error);
+    }
+
     /* Botones de acción */
     .form-actions {
       display: flex;
@@ -1082,11 +1181,41 @@
                 Archivo Adjunto
               </label>
               <div class="file-upload" onclick="document.getElementById('file').click()">
-                <input type="file" id="file" name="file" accept=".pdf,.doc,.docx,.txt,.jpg,.jpeg,.png,.zip">
+                <input type="file" id="file" name="file" accept=".pdf">
                 <div class="file-upload-content">
                   <i class="fas fa-cloud-upload-alt file-upload-icon"></i>
-                  <div class="file-upload-text">Seleccionar archivo</div>
-                  <div class="file-upload-hint">Formatos permitidos: PDF, Word, TXT, JPG, PNG, ZIP (máx. 10MB)</div>
+                  <div class="file-upload-text">Seleccionar archivo PDF</div>
+                  <div class="file-upload-hint">⚠️ SOLO archivos PDF con texto extraíble (NO imágenes escaneadas) - máx. 10MB</div>
+                </div>
+              </div>
+              
+              <!-- Área de progreso de escaneo de seguridad -->
+              <div id="securityProgress" class="security-progress" style="display: none;">
+                <div class="security-header">
+                  <i class="fas fa-shield-alt"></i>
+                  <span>Escaneando archivo por seguridad...</span>
+                </div>
+                <div class="security-steps">
+                  <div class="security-step" id="step-upload">
+                    <i class="fas fa-upload"></i>
+                    <span>Subiendo archivo</span>
+                    <div class="step-status">⏳</div>
+                  </div>
+                  <div class="security-step" id="step-clamav">
+                    <i class="fas fa-virus"></i>
+                    <span>Escaneo antivirus (ClamAV)</span>
+                    <div class="step-status">⏳</div>
+                  </div>
+                  <div class="security-step" id="step-virustotal">
+                    <i class="fas fa-globe"></i>
+                    <span>Verificación online (VirusTotal)</span>
+                    <div class="step-status">⏳</div>
+                  </div>
+                  <div class="security-step" id="step-final">
+                    <i class="fas fa-check-circle"></i>
+                    <span>Validación final</span>
+                    <div class="step-status">⏳</div>
+                  </div>
                 </div>
               </div>
             </div>
