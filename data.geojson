@@ -10,7 +10,10 @@
       },
       "geometry": {
         "type": "Point",
-        "coordinates": [-66.1057, 18.4655]
+        "coordinates": [
+          -66.1057,
+          18.4655
+        ]
       }
     },
     {
@@ -22,7 +25,48 @@
       },
       "geometry": {
         "type": "Point",
-        "coordinates": [-65.9918, 18.4500]
+        "coordinates": [
+          -65.9918,
+          18.45
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "feature_uid": "point-d19bc3a15451",
+        "title": "Junta de Planificacion",
+        "name": "Miguel Melendez",
+        "municipality": "Dorado",
+        "entity": "Junta de Planificacion",
+        "comments": "Test",
+        "timestamp": "2025-10-09T14:39:19.491270"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -65.99641441307607,
+          18.406625984306118
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "feature_uid": "point-48ad27f70f70",
+        "title": "Junta de Planificacion",
+        "name": "Miguel Melendez",
+        "municipality": "Comerío",
+        "entity": "Junta de Planificacion",
+        "comments": "Prueba 2",
+        "timestamp": "2025-10-09T15:04:32.200368"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -66.1055088043213,
+          18.37358963524815
+        ]
       }
     }
   ]

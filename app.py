@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify, send_from_directory, abort, render_template
+from flask import Flask, request, jsonify, send_from_directory, abort, render_template, make_response
 import os, uuid, sqlite3, hashlib, logging
 from datetime import datetime
 from werkzeug.utils import secure_filename
@@ -78,10 +78,30 @@ def init_database():
             id TEXT PRIMARY KEY,
             feature_id TEXT,
             user TEXT,
+            email TEXT,
+            municipality TEXT,
+            entity TEXT,
             text TEXT,
             file_path TEXT,
             created_at TEXT
         )''')
+        
+        # Verificar si necesitamos agregar las nuevas columnas (para compatibilidad con DBs existentes)
+        cursor = conn.cursor()
+        cursor.execute("PRAGMA table_info(solicitudes)")
+        columns = [column[1] for column in cursor.fetchall()]
+        
+        # Agregar columnas nuevas si no existen
+        if 'email' not in columns:
+            conn.execute('ALTER TABLE solicitudes ADD COLUMN email TEXT')
+        if 'municipality' not in columns:
+            conn.execute('ALTER TABLE solicitudes ADD COLUMN municipality TEXT')
+        if 'entity' not in columns:
+            conn.execute('ALTER TABLE solicitudes ADD COLUMN entity TEXT')
+        if 'status' not in columns:
+            conn.execute('ALTER TABLE solicitudes ADD COLUMN status TEXT DEFAULT "new"')
+        
+        conn.commit()
         conn.close()
         return True
     except Exception as e:
@@ -208,7 +228,16 @@ create_directories()
 
 @app.route("/")
 def index():
-    return render_template("index.html")
+    response = make_response(render_template("index.html"))
+    response.headers['Content-Type'] = 'text/html; charset=utf-8'
+    return response
+
+@app.route("/test")
+def test():
+    from datetime import datetime
+    response = make_response(render_template("test.html", current_time=datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
+    response.headers['Content-Type'] = 'text/html; charset=utf-8'
+    return response
 
 @app.route("/admin")
 def admin_panel():
@@ -224,7 +253,7 @@ def geojson():
 def get_comments(feature_id):
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT id, feature_id, user, text, file_path, created_at FROM solicitudes WHERE feature_id = ?", (feature_id,))
+    cursor.execute("SELECT id, feature_id, user, email, municipality, entity, text, file_path, created_at FROM solicitudes WHERE feature_id = ?", (feature_id,))
     rows = cursor.fetchall()
     conn.close()
     # Convert to dict format
@@ -234,19 +263,34 @@ def get_comments(feature_id):
             "comment_id": row[0],
             "feature_id": row[1],
             "user": row[2],
-            "text": row[3],
-            "file_path": row[4],
-            "created_at": row[5]
+            "email": row[3],
+            "municipality": row[4],
+            "entity": row[5],
+            "text": row[6],
+            "file_path": row[7],
+            "created_at": row[8]
         })
     return jsonify(result)
 
 @app.route("/comment", methods=["POST"])
 def post_comment():
     feature_id = request.form.get("feature_id")
-    user = request.form.get("user", "Anónimo")
+    user = request.form.get("user", "")
+    email = request.form.get("email", "")
+    municipality = request.form.get("municipality", "")
+    entity = request.form.get("entity", "")
     text = request.form.get("text", "")
+    
     if not feature_id:
         return jsonify({"error":"feature_id requerido"}), 400
+    if not user:
+        return jsonify({"error":"Nombre es requerido"}), 400
+    if not email:
+        return jsonify({"error":"Correo electrónico es requerido"}), 400
+    if not municipality:
+        return jsonify({"error":"Municipio de residencia es requerido"}), 400
+    if not text:
+        return jsonify({"error":"Comentarios son requeridos"}), 400
 
     file_path = ""
     if 'file' in request.files:
@@ -284,8 +328,10 @@ def post_comment():
 
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute("INSERT INTO solicitudes (id, feature_id, user, text, file_path, created_at) VALUES (?, ?, ?, ?, ?, ?)",
-                   (comment_id, feature_id, user, text, file_path, created_at))
+    cursor.execute("""INSERT INTO solicitudes 
+                      (id, feature_id, user, email, municipality, entity, text, file_path, created_at) 
+                      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                   (comment_id, feature_id, user, email, municipality, entity, text, file_path, created_at))
     conn.commit()
     conn.close()
 
@@ -296,37 +342,49 @@ def get_all_comments():
     """Obtener todos los comentarios para el panel de admin"""
     import json
     
-    # Cargar datos GeoJSON para obtener los títulos
-    feature_titles = {}
+    # Cargar datos GeoJSON para obtener los títulos y coordenadas
+    feature_data = {}
     if os.path.exists(GEOJSON_FILE):
         with open(GEOJSON_FILE, 'r', encoding='utf-8') as f:
             geojson_data = json.load(f)
             for feature in geojson_data.get('features', []):
                 feature_uid = feature.get('properties', {}).get('feature_uid')
                 title = feature.get('properties', {}).get('title', 'Sin título')
+                coordinates = feature.get('geometry', {}).get('coordinates', [])
                 if feature_uid:
-                    feature_titles[feature_uid] = title
+                    feature_data[feature_uid] = {
+                        'title': title,
+                        'coordinates': coordinates  # [lng, lat]
+                    }
     
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT id, feature_id, user, text, file_path, created_at FROM solicitudes ORDER BY created_at DESC")
+    cursor.execute("SELECT id, feature_id, user, email, municipality, entity, text, file_path, created_at, status FROM solicitudes ORDER BY created_at DESC")
     rows = cursor.fetchall()
     conn.close()
     
     result = []
     for row in rows:
         feature_id = row[1]
-        feature_title = feature_titles.get(feature_id, f"Ubicación {feature_id}")
+        feature_info = feature_data.get(feature_id, {})
+        feature_title = feature_info.get('title', f"Ubicación {feature_id}")
+        coordinates = feature_info.get('coordinates', [])
         
         result.append({
             "comment_id": row[0],
             "feature_id": feature_id,
             "feature_title": feature_title,
             "user": row[2],
-            "text": row[3],
-            "file_path": row[4],
-            "created_at": row[5],
-            "status": "pending"  # Por defecto, puedes agregar una columna de status después
+            "email": row[3],
+            "municipality": row[4],
+            "entity": row[5],
+            "text": row[6],
+            "file_path": row[7],
+            "created_at": row[8],
+            "coordinates": coordinates,  # [lng, lat]
+            "lat": coordinates[1] if len(coordinates) >= 2 else None,
+            "lng": coordinates[0] if len(coordinates) >= 2 else None,
+            "status": row[9] if row[9] else "new"  # Usar status de la base de datos o "new" por defecto
         })
     return jsonify(result)
 
@@ -338,6 +396,51 @@ def update_comment_status(comment_id):
     
     # Por ahora solo devolvemos éxito, puedes implementar la lógica de actualización después
     return jsonify({"status": "ok", "message": f"Estado actualizado a {status}"})
+
+@app.route('/api/comments/<comment_id>', methods=["DELETE"])
+def delete_comment(comment_id):
+    """Eliminar un comentario/solicitud por ID"""
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        # Primero obtener información del archivo asociado antes de eliminar
+        cursor.execute("SELECT file_path FROM solicitudes WHERE id = ?", (comment_id,))
+        result = cursor.fetchone()
+        
+        if not result:
+            conn.close()
+            return jsonify({"status": "error", "message": "Solicitud no encontrada"}), 404
+        
+        file_path = result[0]
+        
+        # Eliminar el registro de la base de datos
+        cursor.execute("DELETE FROM solicitudes WHERE id = ?", (comment_id,))
+        
+        if cursor.rowcount == 0:
+            conn.close()
+            return jsonify({"status": "error", "message": "No se pudo eliminar la solicitud"}), 400
+        
+        conn.commit()
+        conn.close()
+        
+        # Eliminar archivo asociado si existe
+        if file_path:
+            full_file_path = os.path.join(app.config['UPLOAD_FOLDER'], file_path)
+            try:
+                if os.path.exists(full_file_path):
+                    os.remove(full_file_path)
+                    logging.info(f"Archivo eliminado: {full_file_path}")
+            except OSError as e:
+                logging.error(f"Error eliminando archivo {full_file_path}: {e}")
+                # No fallar la operación si no se puede eliminar el archivo
+        
+        logging.info(f"Solicitud eliminada: {comment_id}")
+        return jsonify({"status": "ok", "message": "Solicitud eliminada correctamente"})
+        
+    except Exception as e:
+        logging.error(f"Error eliminando solicitud {comment_id}: {e}")
+        return jsonify({"status": "error", "message": "Error interno del servidor"}), 500
 
 @app.route('/uploads/<filename>')
 def uploaded_file(filename):
@@ -352,6 +455,127 @@ def css_file():
 @app.route('/static/scripts.js')
 def js_file():
     return send_from_directory('static', 'scripts.js', mimetype='application/javascript')
+
+# Ruta para manejar el envío del formulario público
+@app.route('/upload', methods=['POST'])
+def upload_request():
+    """Recibe la solicitud del formulario con lat/lng y datos del usuario.
+    - Guarda archivo (opcional) con validación de seguridad
+    - Inserta registro en SQLite
+    - Anexa punto al GeoJSON para visualizarlo en el mapa
+    """
+    try:
+        name = request.form.get('name', '').strip()
+        email = request.form.get('email', '').strip()
+        municipality = request.form.get('municipality', '').strip()
+        entity = request.form.get('entity', '').strip()
+        comments = request.form.get('comments', '').strip()
+        lat = request.form.get('lat', '').strip()
+        lng = request.form.get('lng', '').strip()
+
+        # Validaciones básicas
+        required = {
+            'name': name,
+            'email': email,
+            'municipality': municipality,
+            'entity': entity,
+            'comments': comments,
+            'lat': lat,
+            'lng': lng,
+        }
+        for key, value in required.items():
+            if not value:
+                return jsonify({"error": f"Campo requerido faltante: {key}"}), 400
+
+        try:
+            lat_f = float(lat)
+            lng_f = float(lng)
+        except ValueError:
+            return jsonify({"error": "Coordenadas inválidas"}), 400
+
+        # Manejo de archivo (opcional)
+        saved_file_path = ''
+        if 'file' in request.files:
+            f = request.files['file']
+            if f and f.filename:
+                is_valid, validation_result = validate_file_security(f)
+                if not is_valid:
+                    client_ip = request.environ.get('HTTP_X_FORWARDED_FOR', request.remote_addr)
+                    logging.warning(f"Intento de subida maliciosa desde IP {client_ip}: {validation_result}")
+                    return jsonify({"error": f"Archivo rechazado: {validation_result}"}), 400
+
+                safe_filename = validation_result['filename']
+                file_ext = safe_filename.rsplit('.', 1)[1].lower() if '.' in safe_filename else ''
+                unique_name = f"{uuid.uuid4().hex}.{file_ext}" if file_ext else uuid.uuid4().hex
+                save_path = os.path.join(app.config['UPLOAD_FOLDER'], unique_name)
+                f.seek(0)
+                f.save(save_path)
+                saved_file_path = save_path
+
+        # Preparar IDs y timestamp
+        comment_id = uuid.uuid4().hex
+        feature_hash = hashlib.sha1(f"{lat_f},{lng_f}".encode('utf-8')).hexdigest()[:12]
+        feature_id = f"point-{feature_hash}"
+        created_at = datetime.utcnow().isoformat()
+
+        # Guardar en SQLite
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            INSERT INTO solicitudes (id, feature_id, user, email, municipality, entity, text, file_path, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (comment_id, feature_id, name, email, municipality, entity, comments, saved_file_path, created_at)
+        )
+        conn.commit()
+        conn.close()
+
+        # Anexar al GeoJSON para visualización (no bloqueante)
+        try:
+            import json
+            geojson_path = GEOJSON_FILE
+            if not os.path.exists(geojson_path):
+                base = {"type": "FeatureCollection", "features": []}
+            else:
+                with open(geojson_path, 'r', encoding='utf-8') as f:
+                    base = json.load(f)
+                    if base.get('type') != 'FeatureCollection':
+                        base = {"type": "FeatureCollection", "features": []}
+
+            feature = {
+                "type": "Feature",
+                "properties": {
+                    "feature_uid": feature_id,
+                    "title": entity or municipality or name,
+                    "name": name,
+                    "municipality": municipality,
+                    "entity": entity,
+                    "comments": comments,
+                    "timestamp": created_at
+                },
+                "geometry": {
+                    "type": "Point",
+                    "coordinates": [lng_f, lat_f]
+                }
+            }
+            base.setdefault('features', []).append(feature)
+            with open(geojson_path, 'w', encoding='utf-8') as f:
+                json.dump(base, f, ensure_ascii=False, indent=2)
+        except Exception as geo_err:
+            logging.warning(f"No se pudo escribir en GeoJSON: {geo_err}")
+
+        return jsonify({
+            "status": "ok",
+            "comment_id": comment_id,
+            "feature_id": feature_id,
+            "lat": lat_f,
+            "lng": lng_f
+        })
+
+    except Exception:
+        logging.exception("Error procesando /upload")
+        return jsonify({"error": "Error interno"}), 500
 
 if __name__ == "__main__":
     # Asegurar que los directorios existen

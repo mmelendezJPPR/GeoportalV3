@@ -272,6 +272,36 @@
       color: var(--primary-color);
     }
 
+    .request-details {
+      margin-bottom: 1rem;
+      padding: 1rem;
+      background: rgba(248, 250, 252, 0.8);
+      border-radius: var(--radius-lg);
+      border: 1px solid var(--border-color);
+    }
+
+    .detail-row {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      margin-bottom: 0.5rem;
+      font-size: 0.875rem;
+    }
+
+    .detail-row:last-child {
+      margin-bottom: 0;
+    }
+
+    .detail-row i {
+      color: var(--primary-color);
+      width: 16px;
+      text-align: center;
+    }
+
+    .detail-row strong {
+      color: var(--text-primary);
+    }
+
     .request-location {
       display: flex;
       align-items: center;
@@ -704,8 +734,31 @@
             </div>
           </div>
           
+          <div class="request-details">
+            <div class="detail-row">
+              <i class="fas fa-envelope"></i>
+              <span><strong>Email:</strong> ${request.email || 'No especificado'}</span>
+            </div>
+            <div class="detail-row">
+              <i class="fas fa-map-marker-alt"></i>
+              <span><strong>Municipio:</strong> ${request.municipality || 'No especificado'}</span>
+            </div>
+            ${request.entity ? `
+            <div class="detail-row">
+              <i class="fas fa-building"></i>
+              <span><strong>Entidad:</strong> ${request.entity}</span>
+            </div>
+            ` : ''}
+            ${request.lat && request.lng ? `
+            <div class="detail-row">
+              <i class="fas fa-crosshairs"></i>
+              <span><strong>Coordenadas:</strong> ${request.lat.toFixed(6)}, ${request.lng.toFixed(6)}</span>
+            </div>
+            ` : ''}
+          </div>
+          
           <div class="request-location">
-            <i class="fas fa-map-marker-alt"></i>
+            <i class="fas fa-location-dot"></i>
             <span class="location-text">${request.feature_title}</span>
           </div>
           
@@ -721,10 +774,6 @@
           
           <div class="request-actions">
             ${request.status === 'new' ? `
-              <button class="btn btn-warning btn-small" onclick="updateStatus('${request.comment_id}', 'pending')">
-                <i class="fas fa-clock"></i>
-                Marcar pendiente
-              </button>
             ` : ''}
             ${request.status !== 'resolved' ? `
               <button class="btn btn-success btn-small" onclick="updateStatus('${request.comment_id}', 'resolved')">
@@ -732,9 +781,13 @@
                 Marcar resuelta
               </button>
             ` : ''}
-            <button class="btn btn-secondary btn-small" onclick="viewOnMap('${request.feature_id}')">
+            <button class="btn btn-secondary btn-small" onclick="viewOnMap('${request.feature_id}', ${request.lat}, ${request.lng})">
               <i class="fas fa-map"></i>
               Ver en mapa
+            </button>
+            <button class="btn btn-secondary btn-small" onclick="deleteRequest('${request.comment_id}')">
+              <i class="fas fa-trash"></i>
+              Eliminar solicitud
             </button>
           </div>
         </div>
@@ -772,9 +825,39 @@
       });
     }
 
-    function viewOnMap(featureId) {
-      // Redirigir al mapa principal con el feature seleccionado
-      window.open(`/?feature=${featureId}`, '_blank');
+    function viewOnMap(featureId, lat, lng) {
+      // Redirigir al mapa principal con el feature seleccionado y coordenadas
+      if (lat && lng) {
+        window.open(`/?lat=${lat}&lng=${lng}&zoom=16`, '_blank');
+      } else {
+        window.open(`/?feature=${featureId}`, '_blank');
+      }
+    }
+
+    function deleteRequest(commentId) {
+      if (!confirm('¿Estás seguro de que deseas eliminar esta solicitud? Esta acción no se puede deshacer.')) {
+        return;
+      }
+
+      fetch(`/api/comments/${commentId}`, {
+        method: 'DELETE'
+      })
+      .then(r => r.json())
+      .then(response => {
+        if (response.status === 'ok') {
+          allRequests = allRequests.filter(r => r.comment_id !== commentId);
+          filteredRequests = [...allRequests];
+          updateStats();
+          renderRequests();
+          showNotification('Solicitud eliminada correctamente', 'success');
+        } else {
+          showNotification('Error al eliminar la solicitud', 'error');
+        }
+      })
+      .catch(err => {
+        console.error('Error deleting request:', err);
+        showNotification('Error de conexión', 'error');
+      });
     }
 
     function applyFilters() {

@@ -1,72 +1,16 @@
 // Variables globales
 let map;
 let currentFeature = null;
+let mapLayers = {};
+let currentLayer = 'satellite';
 
 // Configuración de validación de archivos (lado cliente)
 const MAX_FILE_SIZE_CLIENT = 10 * 1024 * 1024; // 10MB
 const ALLOWED_EXTENSIONS_CLIENT = ['png', 'jpg', 'jpeg', 'gif', 'pdf', 'doc', 'docx', 'txt'];
 
-// Funciones de validación de archivos (lado cliente)
-function validateFileClient(input) {
-  const messageDiv = document.getElementById('file-validation-message');
-  const file = input.files[0];
-  
-  if (!file) {
-    hideValidationMessage();
-    return true;
-  }
-  
-  // Validar tamaño
-  if (file.size > MAX_FILE_SIZE_CLIENT) {
-    showValidationMessage(`El archivo es demasiado grande. Máximo permitido: ${(MAX_FILE_SIZE_CLIENT / 1024 / 1024).toFixed(1)}MB`, 'error');
-    input.value = '';
-    return false;
-  }
-  
-  // Validar extensión
-  const fileName = file.name.toLowerCase();
-  const extension = fileName.split('.').pop();
-  
-  if (!ALLOWED_EXTENSIONS_CLIENT.includes(extension)) {
-    showValidationMessage(`Tipo de archivo no permitido. Permitidos: ${ALLOWED_EXTENSIONS_CLIENT.join(', ').toUpperCase()}`, 'error');
-    input.value = '';
-    return false;
-  }
-  
-  // Validación exitosa
-  showValidationMessage(`✓ Archivo válido: ${file.name} (${(file.size / 1024).toFixed(1)} KB)`, 'success');
-  return true;
-}
-
-function showValidationMessage(message, type) {
-  const messageDiv = document.getElementById('file-validation-message');
-  messageDiv.textContent = message;
-  messageDiv.style.display = 'block';
-  
-  if (type === 'error') {
-    messageDiv.style.backgroundColor = '#fee2e2';
-    messageDiv.style.color = '#dc2626';
-    messageDiv.style.border = '1px solid #fecaca';
-  } else if (type === 'success') {
-    messageDiv.style.backgroundColor = '#dcfce7';
-    messageDiv.style.color = '#16a34a';
-    messageDiv.style.border = '1px solid #bbf7d0';
-  }
-}
-
-function hideValidationMessage() {
-  const messageDiv = document.getElementById('file-validation-message');
-  messageDiv.style.display = 'none';
-}
-
-// Funciones globales (necesarias para los eventos HTML)
+// Funciones globales
 function closeSidebar() {
   document.getElementById('sidebar').classList.remove('active');
-}
-
-function toggleInfo() {
-  // Función para mostrar información de la app
-  showNotification("Haz clic en cualquier punto del mapa para ver y agregar comentarios", "success");
 }
 
 function formatDate(dateString) {
@@ -95,188 +39,303 @@ function showNotification(message, type = 'info') {
   // Animar entrada
   setTimeout(() => notification.classList.add('show'), 100);
   
-  // Remover después de 3 segundos
+  // Remover después de 5 segundos
   setTimeout(() => {
     notification.classList.remove('show');
-    setTimeout(() => document.body.removeChild(notification), 300);
-  }, 3000);
+    setTimeout(() => {
+      if (notification.parentNode) {
+        notification.parentNode.removeChild(notification);
+      }
+    }, 300);
+  }, 5000);
 }
 
-// Inicialización cuando el DOM está listo
+// ========== INICIALIZACIÓN DEL MAPA ==========
+
 document.addEventListener('DOMContentLoaded', function() {
-  // Inicializar mapa
-  map = L.map('map').setView([18.45, -66.1], 11);
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    attribution: 'Datos © OpenStreetMap'
-  }).addTo(map);
+  // Inicializar el mapa
+  map = L.map('map').setView([18.2208, -66.5901], 9);
 
-  // Cargar datos GeoJSON
-  fetch('/data.geojson')
-    .then(r => r.json())
-    .then(geojson => {
-      const layer = L.geoJSON(geojson, {
-        onEachFeature: function(feat, layer) {
-          layer.bindPopup(`<b>${feat.properties.title}</b><br>${feat.properties.description}`);
-          layer.on('click', () => openSidebar(feat));
-        }
-      }).addTo(map);
-      map.fitBounds(layer.getBounds());
-      
-      // Verificar si hay un feature específico en la URL
-      const urlParams = new URLSearchParams(window.location.search);
-      const targetFeatureId = urlParams.get('feature');
-      
-      if (targetFeatureId) {
-        // Buscar el feature correspondiente
-        const targetFeature = geojson.features.find(feature => 
-          feature.properties.feature_uid === targetFeatureId
-        );
-        
-        if (targetFeature) {
-          // Centrar el mapa en esa ubicación
-          const coords = targetFeature.geometry.coordinates;
-          map.setView([coords[1], coords[0]], 15);
-          
-          // Abrir el sidebar automáticamente
-          setTimeout(() => {
-            openSidebar(targetFeature);
-            showNotification('Ubicación encontrada desde el panel de administración', 'success');
-          }, 500);
-        } else {
-          showNotification('Ubicación no encontrada', 'error');
-        }
-      }
-    })
-    .catch(error => {
-      console.error('Error cargando GeoJSON:', error);
-      showNotification('Error cargando los datos del mapa', 'error');
-    });
+  // Configurar capas del mapa
+  setupMapLayers();
 
-  // Cerrar sidebar al hacer clic en el mapa
+  // Eventos del mapa
   map.on('click', function(e) {
-    if (!e.originalEvent.target.closest('.leaflet-marker-icon')) {
-      closeSidebar();
+    // Si se hizo click en un marcador o popup, no hacer nada
+    if (e.originalEvent.target.closest('.leaflet-marker-icon') || 
+        e.originalEvent.target.closest('.leaflet-popup') ||
+        e.originalEvent.target.closest('.leaflet-div-icon')) {
+      return;
     }
+    
+    // Cerrar sidebar si está abierto
+    closeSidebar();
+    
+    // Crear marcador temporal con las coordenadas
+    createLocationMarker(e.latlng.lat, e.latlng.lng);
   });
+
+  // Inicializar controles del formulario
+  initFormControls();
 });
 
-function openSidebar(feature) {
-  currentFeature = feature;
-  const fid = feature.properties.feature_uid;
-  
-  // Actualizar título
-  document.getElementById('sidebarTitle').textContent = feature.properties.title;
-  
-  // Mostrar sidebar
-  const sidebar = document.getElementById('sidebar');
-  sidebar.classList.add('active');
-  
-  // Contenido del sidebar
-  const html = `
-    <div class="fade-in">
-      <div style="margin-bottom: 1.5rem;">
-        <p style="color: var(--text-secondary); line-height: 1.6;">${feature.properties.description}</p>
-      </div>
-      
-      <div class="comment-form">
-        <div class="form-title">
-          <i class="fas fa-comment-plus"></i>
-          Agregar comentario
-        </div>
-        <form onsubmit="submitComment(event)">
-          <div class="input-group">
-            <label for="user">Nombre (opcional)</label>
-            <input type="text" id="user" name="user" placeholder="Tu nombre...">
-          </div>
-          
-          <div class="input-group">
-            <label for="text">Comentario</label>
-            <textarea id="text" name="text" rows="3" placeholder="Escribe tu comentario..."></textarea>
-          </div>
-          
-          <div class="input-group">
-            <label for="file">Archivo adjunto (opcional)</label>
-            <input type="file" id="file" name="file" accept=".png,.jpg,.jpeg,.gif,.pdf,.doc,.docx,.txt" onchange="validateFileClient(this)">
-            <div class="file-validation-info" style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 0.5rem;">
-              <i class="fas fa-info-circle"></i>
-              Tipos permitidos: PNG, JPG, GIF, PDF, DOC, DOCX, TXT (máx. 10MB)
-            </div>
-            <div id="file-validation-message" style="display: none; margin-top: 0.5rem; padding: 0.5rem; border-radius: 4px;"></div>
-          </div>
-          
-          <button type="submit" class="btn btn-primary">
-            <i class="fas fa-paper-plane"></i>
-            Enviar comentario
-          </button>
-        </form>
-      </div>
-    </div>
-  `;
-  
-  document.getElementById('sidebarContent').innerHTML = html;
-  
-  // Cargar comentarios
-  loadComments(fid);
-}
+// ========== CONFIGURACIÓN DE CAPAS DEL MAPA ==========
 
-function loadComments(featureId) {
-  fetch(`/comments/${featureId}`)
-    .then(r => r.json())
-    .then(comments => {
-      const commentsDiv = document.getElementById('comments');
-      
-      if (comments.length === 0) {
-        commentsDiv.innerHTML = `
-          <div class="empty-comments">
-            <i class="fas fa-comments"></i>
-            <h4>Sin comentarios</h4>
-            <p>Sé el primero en comentar sobre esta ubicación</p>
-          </div>
-        `;
-      } else {
-        let html = '<div class="comments-title"><i class="fas fa-comments"></i> Comentarios</div>';
-        comments.forEach(comment => {
-          html += `
-            <div class="comment-card">
-              <div class="comment-header">
-                <div class="comment-user">
-                  <i class="fas fa-user-circle"></i>
-                  <span>${comment.user}</span>
-                </div>
-                <div class="comment-date">${formatDate(comment.created_at)}</div>
-              </div>
-              <div class="comment-text">${comment.text}</div>
-              ${comment.file_path ? `
-                <div class="comment-attachment">
-                  <i class="fas fa-paperclip"></i>
-                  <a href="/${comment.file_path}" target="_blank">Ver archivo adjunto</a>
-                </div>
-              ` : ''}
-            </div>
-          `;
-        });
-        commentsDiv.innerHTML = html;
-      }
+function setupMapLayers() {
+  // Capa de satélite por defecto
+  mapLayers.satellite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+    attribution: 'Tiles &copy; Esri',
+    maxZoom: 19
+  });
+
+  // Capa de planificación
+  mapLayers.planning = L.tileLayer('https://gis.jp.pr.gov/server/rest/services/Mapa_de_Planificacion/MapServer/tile/{z}/{y}/{x}', {
+    attribution: '&copy; Junta de Planificación de Puerto Rico',
+    maxZoom: 19
+  });
+
+  // Capa híbrida
+  mapLayers.hybrid = L.layerGroup([
+    L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+      attribution: 'Tiles &copy; Esri',
+      maxZoom: 19
+    }),
+    L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}', {
+      maxZoom: 19
     })
-    .catch(error => {
-      console.error('Error cargando comentarios:', error);
-      document.getElementById('comments').innerHTML = `
-        <div class="error-state">
-          <i class="fas fa-exclamation-triangle"></i>
-          <p>Error cargando comentarios</p>
-        </div>
-      `;
-    });
+  ]);
+
+  // Capa de calles
+  mapLayers.street = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '&copy; OpenStreetMap contributors',
+    maxZoom: 19
+  });
+
+  // Capa de terreno
+  mapLayers.terrain = L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
+    attribution: 'Map data: &copy; OpenStreetMap contributors, SRTM | Map style: &copy; OpenTopoMap',
+    maxZoom: 17
+  });
+
+  // Agregar capa por defecto
+  mapLayers[currentLayer].addTo(map);
 }
 
-function submitComment(event) {
-  event.preventDefault();
+// ========== FUNCIONES DEL MARCADOR DE UBICACIÓN ==========
+
+function createLocationMarker(lat, lng) {
+  // Remover marcador anterior si existe
+  if (window.currentLocationMarker) {
+    map.removeLayer(window.currentLocationMarker);
+  }
   
-  if (!currentFeature) return;
+  // Crear marcador con icono personalizado
+    window.currentLocationMarker = L.marker([lat, lng], {
+      icon: L.divIcon({
+        className: 'location-marker',
+        html: '<div class="marker-inner"><i class="fas fa-map-pin"></i></div>',
+        iconSize: [30, 30],
+        iconAnchor: [15, 30]
+      })
+    }).addTo(map);
+  
+  // Actualizar las coordenadas en el formulario
+  updateCoordinateDisplays(lat, lng);
+  
+  // Scroll suave hacia el formulario si está fuera de vista
+  const formSection = document.querySelector('.form-card');
+  if (formSection) {
+    formSection.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+}
+
+function removeLocationMarker() {
+  if (window.currentLocationMarker) {
+    map.removeLayer(window.currentLocationMarker);
+    window.currentLocationMarker = null;
+  }
+}
+
+// ========== FUNCIONES DEL FORMULARIO ==========
+
+function updateCoordinateDisplays(lat, lng) {
+  // Actualizar los campos de coordenadas en el formulario
+  const latDisplay = document.getElementById('lat-display');
+  const lngDisplay = document.getElementById('lng-display');
+  
+  // Validar que lat y lng sean números antes de usar toFixed
+  if (latDisplay) latDisplay.value = (typeof lat === 'number' && !isNaN(lat)) ? lat.toFixed(6) : '';
+  if (lngDisplay) lngDisplay.value = (typeof lng === 'number' && !isNaN(lng)) ? lng.toFixed(6) : '';
+  
+  // También actualizar los campos hidden para el envío del formulario
+  const latInput = document.querySelector('input[name="lat"]');
+  const lngInput = document.querySelector('input[name="lng"]');
+  
+  if (latInput) latInput.value = (typeof lat === 'number' && !isNaN(lat)) ? lat : '';
+  if (lngInput) lngInput.value = (typeof lng === 'number' && !isNaN(lng)) ? lng : '';
+}
+
+function resetForm() {
+  // Limpiar todos los campos del formulario
+  document.getElementById('uploadForm').reset();
+  
+  // Limpiar las coordenadas
+  updateCoordinateDisplays('', '');
+  
+  // Remover marcador si existe
+  if (window.currentLocationMarker) {
+    map.removeLayer(window.currentLocationMarker);
+    window.currentLocationMarker = null;
+  }
+  
+  // Restaurar el display del upload de archivo
+  const fileUploadContent = document.querySelector('.file-upload-content');
+  if (fileUploadContent) {
+    fileUploadContent.innerHTML = `
+      <i class="fas fa-cloud-upload-alt file-upload-icon"></i>
+      <div class="file-upload-text">Seleccionar archivo</div>
+      <div class="file-upload-hint">Formatos permitidos: PDF, Word, TXT, JPG, PNG, ZIP (máx. 10MB)</div>
+    `;
+  }
+  
+  // Enfocar el primer campo
+  const nameInput = document.getElementById('name');
+  if (nameInput) nameInput.focus();
+}
+
+// ========== INICIALIZACIÓN DE CONTROLES DEL FORMULARIO ==========
+
+function initFormControls() {
+  const uploadForm = document.getElementById('uploadForm');
+  if (uploadForm) {
+    uploadForm.addEventListener('submit', handleUploadSubmit);
+  }
+  
+  // Inicializar manejo de archivos
+  initFileUpload();
+}
+
+function initFileUpload() {
+  const fileInput = document.getElementById('file');
+  const fileUploadDiv = document.querySelector('.file-upload');
+  
+  if (fileInput && fileUploadDiv) {
+    fileInput.addEventListener('change', function(e) {
+      const file = e.target.files[0];
+      updateFileUploadDisplay(file);
+    });
+    
+    // Manejo de drag & drop
+    fileUploadDiv.addEventListener('dragover', function(e) {
+      e.preventDefault();
+      fileUploadDiv.style.borderColor = 'var(--jp-blue)';
+      fileUploadDiv.style.backgroundColor = 'rgba(47, 79, 127, 0.05)';
+    });
+    
+    fileUploadDiv.addEventListener('dragleave', function(e) {
+      e.preventDefault();
+      fileUploadDiv.style.borderColor = 'var(--border-color)';
+      fileUploadDiv.style.backgroundColor = '';
+    });
+    
+    fileUploadDiv.addEventListener('drop', function(e) {
+      e.preventDefault();
+      fileUploadDiv.style.borderColor = 'var(--border-color)';
+      fileUploadDiv.style.backgroundColor = '';
+      
+      const files = e.dataTransfer.files;
+      if (files.length > 0) {
+        fileInput.files = files;
+        updateFileUploadDisplay(files[0]);
+      }
+    });
+  }
+}
+
+function updateFileUploadDisplay(file) {
+  const fileUploadContent = document.querySelector('.file-upload-content');
+  
+  if (!file) {
+    // Restaurar estado inicial
+    fileUploadContent.innerHTML = `
+      <i class="fas fa-cloud-upload-alt file-upload-icon"></i>
+      <div class="file-upload-text">Seleccionar archivo</div>
+      <div class="file-upload-hint">Formatos permitidos: PDF, Word, TXT, JPG, PNG, ZIP (máx. 10MB)</div>
+    `;
+    return;
+  }
+  
+  // Validar archivo
+  const maxSize = 10 * 1024 * 1024; // 10MB
+  const allowedTypes = ['.pdf', '.doc', '.docx', '.txt', '.jpg', '.jpeg', '.png', '.zip'];
+  const fileExtension = '.' + file.name.split('.').pop().toLowerCase();
+  
+  if (file.size > maxSize) {
+    fileUploadContent.innerHTML = `
+      <i class="fas fa-exclamation-triangle file-upload-icon" style="color: #dc3545;"></i>
+      <div class="file-upload-text" style="color: #dc3545;">Archivo muy grande</div>
+      <div class="file-upload-hint">El archivo debe ser menor a 10MB</div>
+    `;
+    document.getElementById('file').value = '';
+    return;
+  }
+  
+  if (!allowedTypes.includes(fileExtension)) {
+    fileUploadContent.innerHTML = `
+      <i class="fas fa-exclamation-triangle file-upload-icon" style="color: #dc3545;"></i>
+      <div class="file-upload-text" style="color: #dc3545;">Tipo de archivo no permitido</div>
+      <div class="file-upload-hint">Formatos permitidos: PDF, Word, TXT, JPG, PNG, ZIP</div>
+    `;
+    document.getElementById('file').value = '';
+    return;
+  }
+  
+  // Mostrar archivo seleccionado
+  const fileSize = (file.size / 1024 / 1024).toFixed(2);
+  fileUploadContent.innerHTML = `
+    <i class="fas fa-file file-upload-icon" style="color: var(--success);"></i>
+    <div class="file-upload-text" style="color: var(--success);">${file.name}</div>
+    <div class="file-upload-hint">${fileSize} MB - Haz clic para cambiar</div>
+  `;
+}
+
+// ========== MANEJO DEL ENVÍO DEL FORMULARIO ==========
+
+function handleUploadSubmit(event) {
+  event.preventDefault();
   
   const form = event.target;
   const formData = new FormData(form);
-  formData.append('feature_id', currentFeature.properties.feature_uid);
+  
+  // Validar que se haya seleccionado una ubicación
+  const latValue = formData.get('lat');
+  const lngValue = formData.get('lng');
+  
+  if (!latValue || !lngValue || latValue === '' || lngValue === '') {
+    showNotification('Por favor, haz clic en el mapa para seleccionar una ubicación', 'error');
+    return;
+  }
+  
+  // Validar campos requeridos
+  const requiredFields = [
+    { name: 'name', label: 'Nombre' },
+    { name: 'email', label: 'Correo Electrónico' },
+    { name: 'municipality', label: 'Municipio' },
+    { name: 'entity', label: 'Entidad' },
+    { name: 'comments', label: 'Comentarios' }
+  ];
+  
+  for (let field of requiredFields) {
+    if (!formData.get(field.name) || formData.get(field.name).trim() === '') {
+      showNotification(`El campo ${field.label} es requerido`, 'error');
+      const fieldElement = document.getElementById(field.name);
+      if (fieldElement) {
+        fieldElement.focus();
+        fieldElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+      return;
+    }
+  }
   
   // Cambiar botón a estado de carga
   const submitBtn = form.querySelector('button[type="submit"]');
@@ -284,23 +343,41 @@ function submitComment(event) {
   submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Enviando...';
   submitBtn.disabled = true;
   
-  fetch('/comment', {
+  fetch('/upload', {
     method: 'POST',
     body: formData
   })
-  .then(r => r.json())
+  .then(response => response.json())
   .then(result => {
     if (result.status === 'ok') {
-      showNotification('Comentario enviado exitosamente', 'success');
-      form.reset();
-      loadComments(currentFeature.properties.feature_uid);
+      showNotification('¡Solicitud enviada exitosamente!', 'success');
+      
+      // Limpiar formulario después del éxito
+      resetForm();
+      
+      // Agregar marcador permanente en la ubicación de la solicitud
+      const lat = parseFloat(latValue);
+      const lng = parseFloat(lngValue);
+      
+      if (!isNaN(lat) && !isNaN(lng)) {
+        L.marker([lat, lng], {
+          icon: L.divIcon({
+            className: 'user-request-marker',
+            html: '<i class="fas fa-file-alt"></i>',
+            iconSize: [25, 25],
+            iconAnchor: [12, 25]
+          })
+        }).addTo(map)
+          .bindPopup('<b>Solicitud enviada</b><br>Tu solicitud ha sido registrada en esta ubicación.');
+      }
+      
     } else {
-      showNotification('Error enviando comentario: ' + (result.error || 'Error desconocido'), 'error');
+      showNotification('Error: ' + (result.error || 'Error desconocido'), 'error');
     }
   })
   .catch(error => {
-    console.error('Error enviando comentario:', error);
-    showNotification('Error enviando comentario', 'error');
+    console.error('Error enviando solicitud:', error);
+    showNotification('Error al enviar la solicitud. Por favor, inténtalo de nuevo.', 'error');
   })
   .finally(() => {
     // Restaurar botón
@@ -308,3 +385,45 @@ function submitComment(event) {
     submitBtn.disabled = false;
   });
 }
+
+// ========== FUNCIONES DE CARGA DE DATOS ==========
+
+function loadExistingComments() {
+  fetch('/data.geojson')
+    .then(response => response.json())
+    .then(data => {
+      L.geoJSON(data, {
+        pointToLayer: function(feature, latlng) {
+          return L.marker(latlng, {
+              icon: L.divIcon({
+                className: 'user-request-marker',
+                html: '<div class="marker-inner"><i class="fas fa-comment"></i></div>',
+                iconSize: [20, 20],
+                iconAnchor: [10, 20]
+              })
+          });
+        },
+        onEachFeature: function(feature, layer) {
+          if (feature.properties) {
+            layer.bindPopup(`
+              <div class="comment-popup">
+                <h4>${feature.properties.name || 'Comentario'}</h4>
+                <p><strong>Municipio:</strong> ${feature.properties.municipality || 'N/A'}</p>
+                <p><strong>Entidad:</strong> ${feature.properties.entity || 'N/A'}</p>
+                <p><strong>Comentario:</strong> ${feature.properties.comments || 'Sin comentarios'}</p>
+                <p><small><strong>Fecha:</strong> ${formatDate(feature.properties.timestamp)}</small></p>
+              </div>
+            `);
+          }
+        }
+      }).addTo(map);
+    })
+    .catch(error => {
+      console.error('Error cargando comentarios existentes:', error);
+    });
+}
+
+// Cargar comentarios existentes cuando se carga la página
+document.addEventListener('DOMContentLoaded', function() {
+  setTimeout(loadExistingComments, 1000);
+});

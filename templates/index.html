@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Mapa Público con Comentarios</title>
+  <title>Geoportal Público - Junta de Planificación</title>
   <link rel="icon" type="image/x-icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🗺️</text></svg>">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css"/>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -14,18 +14,14 @@
       --primary-color: #2f587a;
       --primary-dark: #284d7e;
       --secondary-color: #f8fafc;
-      --accent-color: #10b981;
-      --text-primary: #1f2937;
-      --text-secondary: #6b7280;
-      --border-color: #e5e7eb;
-      --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
-      --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
-      --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
-      --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
-      --radius-sm: 0.375rem;
-      --radius-md: 0.5rem;
-      --radius-lg: 0.75rem;
-      --radius-xl: 1rem;
+      --accent-color: #284d7e;
+      --border-color: #d1d5db;
+      --border-light: #e5e7eb;
+      --success: #10b981;
+      --error: #ef4444;
+      --shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+      --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+      --radius: 8px;
     }
 
     * {
@@ -36,112 +32,375 @@
 
     body {
       font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-      background: #f9fafb;
+      background: var(--bg-light);
       color: var(--text-primary);
       line-height: 1.6;
+      font-size: 14px;
     }
 
-    /* Header moderno */
+    /* Header con logo de JP más compacto */
     .header {
-      position: fixed;
-      top: 0;
-      left: 0;
-      right: 0;
-      background: rgba(255, 255, 255, 0.95);
-      backdrop-filter: blur(20px);
-      border-bottom: 1px solid var(--border-color);
-      padding: 1rem 2rem;
-      z-index: 1001;
-      box-shadow: var(--shadow-sm);
+      background: var(--bg-white);
+      padding: 1rem 0;
+      border-bottom: 2px solid var(--primary-color);
+      box-shadow: var(--shadow);
     }
 
     .header-content {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      max-width: 1400px;
+      max-width: 1000px;
       margin: 0 auto;
-    }
-
-    .logo {
+      padding: 0 2rem;
       display: flex;
       align-items: center;
-      gap: 0.75rem;
-      font-weight: 700;
-      font-size: 1.25rem;
-      color: var(--primary-color);
+      gap: 2rem;
     }
 
-    .logo i {
+    .logo-jp {
+      height: 60px;
+      width: auto;
+    }
+
+    .header-title {
+      flex: 1;
+      margin-left: 1rem;
+    }
+
+    .header-title h1 {
+      color: var(--primary-color);
       font-size: 1.5rem;
+      font-weight: 700;
+      margin-bottom: 0.25rem;
+      letter-spacing: -0.025em;
+    }
+
+    .header-title p {
+      color: var(--text-secondary);
+      font-size: 0.875rem;
+      font-weight: 400;
     }
 
     .header-actions {
       display: flex;
-      gap: 1rem;
+      gap: 0.75rem;
       align-items: center;
     }
 
-    .btn {
-      display: inline-flex;
+    /* Contenedor principal más compacto */
+    .main-container {
+      max-width: 1000px;
+      margin: 1.5rem auto;
+      padding: 0 1rem;
+    }
+
+    /* Formulario principal con estilo más oficial */
+    .form-card {
+      background: var(--bg-white);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow-lg);
+      overflow: hidden;
+      border: 1px solid var(--border-light);
+    }
+
+    .form-header {
+      background: var(--primary-color);
+      color: white;
+      padding: 1.5rem 2rem;
+      text-align: left;
+      border-bottom: 3px solid var(--gold);
+    }
+
+    .form-header h2 {
+      font-size: 1.5rem;
+      font-weight: 600;
+      margin-bottom: 0.5rem;
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    .form-header p {
+      font-size: 0.95rem;
+      opacity: 0.9;
+      font-weight: 400;
+    }
+
+    .form-content {
+      padding: 1.5rem 2rem 2rem;
+    }
+
+    /* Sección del mapa más compacta */
+    .map-section {
+      margin-bottom: 1.5rem;
+    }
+
+    .section-title {
+      font-size: 1.1rem;
+      font-weight: 600;
+      color: var(--text-primary);
+      margin-bottom: 0.75rem;
+      display: flex;
       align-items: center;
       gap: 0.5rem;
-      padding: 0.75rem 1.5rem;
-      border: none;
-      border-radius: var(--radius-lg);
-      font-weight: 500;
+      padding-bottom: 0.5rem;
+      border-bottom: 2px solid var(--border-light);
+    }
+
+    .section-title i {
+      color: var(--primary-color);
+      font-size: 1rem;
+    }
+
+    .section-title::after {
+      content: '*';
+      color: var(--error);
+      margin-left: 0.25rem;
+      font-weight: 700;
+    }
+
+    .map-container {
+      border: 2px solid var(--border-color);
+      border-radius: var(--radius);
+      overflow: hidden;
+      margin-bottom: 0.75rem;
+      position: relative;
+      background: var(--bg-light);
+    }
+
+    #map {
+      height: 350px;
+      width: 100%;
+    }
+
+    .map-instructions {
+      background: #eff6ff;
+      border: 1px solid #bfdbfe;
+      border-radius: 6px;
+      padding: 0.75rem;
+      margin-bottom: 0.75rem;
+      color: #1e40af;
       font-size: 0.875rem;
-      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .map-instructions i {
+      color: var(--primary-color);
+      font-size: 1rem;
+    }
+
+    .coordinates-display {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.75rem;
+      margin-top: 0.75rem;
+    }
+
+    .coord-group {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      background: var(--bg-light);
+      padding: 0.5rem 0.75rem;
+      border-radius: 6px;
+      border: 1px solid var(--border-color);
+    }
+
+    .coord-group label {
+      font-weight: 600;
+      color: var(--text-primary);
+      min-width: 30px;
+      font-size: 0.875rem;
+    }
+
+    .coord-group input {
+      flex: 1;
+      border: none;
+      background: none;
+      font-family: 'Courier New', monospace;
+      font-size: 0.8rem;
+      color: var(--text-secondary);
+      font-weight: 500;
+    }
+
+    /* Campos del formulario más profesionales */
+    .form-fields {
+      display: grid;
+      gap: 1.25rem;
+    }
+
+    .field-group {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1rem;
+    }
+
+    .field {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .field.full-width {
+      grid-column: 1 / -1;
+    }
+
+    .field label {
+      font-weight: 600;
+      color: var(--text-primary);
+      margin-bottom: 0.5rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 0.9rem;
+    }
+
+    .field label i {
+      color: var(--primary-color);
+      font-size: 0.9rem;
+      width: 16px;
+      text-align: center;
+    }
+
+    .field label.required::after {
+      content: '*';
+      color: var(--error);
+      margin-left: 0.25rem;
+      font-weight: 700;
+    }
+
+    .field input,
+    .field select,
+    .field textarea {
+      padding: 0.75rem;
+      border: 2px solid var(--border-color);
+      border-radius: 6px;
+      font-size: 0.9rem;
+      font-family: inherit;
       transition: all 0.2s ease;
+      background: var(--bg-white);
+    }
+
+    .field input:focus,
+    .field select:focus,
+    .field textarea:focus {
+      outline: none;
+      border-color: var(--primary-color);
+      box-shadow: 0 0 0 3px rgba(30, 58, 138, 0.1);
+    }
+
+    .field textarea {
+      resize: vertical;
+      min-height: 80px;
+      line-height: 1.5;
+    }
+
+    .field small {
+      color: var(--text-secondary);
+      font-size: 0.8rem;
+      margin-top: 0.25rem;
+    }
+
+    /* Sección de archivo */
+    .file-upload {
+      border: 2px dashed var(--border-color);
+      border-radius: 8px;
+      padding: 2rem;
+      text-align: center;
+      transition: all 0.3s ease;
+      cursor: pointer;
+    }
+
+    .file-upload:hover {
+      border-color: var(--primary-color);
+      background: rgba(47, 79, 127, 0.02);
+    }
+
+    .file-upload input[type="file"] {
+      display: none;
+    }
+
+    .file-upload-content {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 1rem;
+    }
+
+    .file-upload-icon {
+      font-size: 2.5rem;
+      color: var(--primary-color);
+    }
+
+    .file-upload-text {
+      font-size: 1.1rem;
+      font-weight: 500;
+      color: var(--text-primary);
+    }
+
+    .file-upload-hint {
+      font-size: 0.9rem;
+      color: var(--text-secondary);
+    }
+
+    /* Botones de acción */
+    .form-actions {
+      display: flex;
+      gap: 1rem;
+      justify-content: flex-end;
+      margin-top: 2rem;
+      padding-top: 2rem;
+      border-top: 1px solid var(--border-color);
+    }
+
+    .btn {
+      padding: 0.75rem 2rem;
+      border: 2px solid;
+      border-radius: 6px;
+      font-size: 1rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
       text-decoration: none;
     }
 
     .btn-primary {
       background: var(--primary-color);
+      border-color: var(--primary-color);
       color: white;
-      box-shadow: var(--shadow-sm);
     }
 
     .btn-primary:hover {
-      background: var(--primary-dark);
-      transform: translateY(-1px);
-      box-shadow: var(--shadow-md);
+      background: var(--jp-light-blue);
+      transform: translateY(-2px);
+      box-shadow: var(--shadow);
     }
 
     .btn-secondary {
-      background: white;
+      background: var(--white);
+      border-color: var(--border-color);
       color: var(--text-primary);
-      border: 1px solid var(--border-color);
-      box-shadow: var(--shadow-sm);
     }
 
     .btn-secondary:hover {
-      background: var(--secondary-color);
-      transform: translateY(-1px);
-      box-shadow: var(--shadow-md);
+      background: var(--bg-light);
+      transform: translateY(-2px);
+      box-shadow: var(--shadow);
     }
 
-    /* Mapa con esquinas redondeadas */
-    #map {
-      height: calc(100vh - 80px);
-      margin-top: 80px;
-      border-radius: var(--radius-xl);
-      margin: 80px 1rem 1rem 1rem;
-      box-shadow: var(--shadow-xl);
-      overflow: hidden;
-    }
-
-    /* Sidebar moderna */
+    /* Sidebar para comentarios */
     .sidebar {
       position: fixed;
       top: 0;
       right: -400px;
       width: 400px;
       height: 100vh;
-      background: white;
-      box-shadow: var(--shadow-xl);
+      background: var(--white);
+      box-shadow: var(--shadow-lg);
       transition: right 0.3s ease;
-      z-index: 1002;
+      z-index: 1000;
       overflow-y: auto;
     }
 
@@ -149,95 +408,109 @@
       right: 0;
     }
 
-    .close-btn {
+    .sidebar-header {
+      background: var(--primary-color);
+      color: var(--white);
+      padding: 1.5rem;
+      position: relative;
+    }
+
+    .sidebar-title {
+      font-size: 1.3rem;
+      font-weight: 600;
+    }
+
+    .close-sidebar {
       position: absolute;
       top: 1rem;
       right: 1rem;
       background: none;
       border: none;
+      color: var(--white);
       font-size: 1.5rem;
-      color: var(--text-secondary);
       cursor: pointer;
       padding: 0.5rem;
-      border-radius: var(--radius-md);
-      transition: all 0.2s ease;
+      border-radius: 4px;
+      transition: background 0.3s ease;
     }
 
-    .close-btn:hover {
-      background: var(--secondary-color);
-      color: var(--text-primary);
-    }
-
-    .sidebar-header {
-      padding: 2rem 2rem 1rem;
-      border-bottom: 1px solid var(--border-color);
-      background: linear-gradient(135deg, var(--primary-color), var(--primary-dark));
-      color: white;
-    }
-
-    .sidebar-title {
-      font-size: 1.5rem;
-      font-weight: 700;
-      margin-bottom: 0.5rem;
-    }
-
-    .sidebar-subtitle {
-      font-size: 0.875rem;
-      opacity: 0.9;
+    .close-sidebar:hover {
+      background: rgba(255, 255, 255, 0.1);
     }
 
     .sidebar-content {
-      padding: 2rem;
+      padding: 1.5rem;
     }
 
-    .empty-state {
-      text-align: center;
-      padding: 3rem 2rem;
-      color: var(--text-secondary);
+    /* Responsive */
+    @media (max-width: 768px) {
+      .header-content {
+        flex-direction: column;
+        text-align: center;
+        gap: 1rem;
+      }
+
+      .main-container {
+        padding: 0 1rem;
+      }
+
+      .form-content {
+        padding: 1.5rem;
+      }
+
+      .field-group {
+        grid-template-columns: 1fr;
+      }
+
+      .coordinates-display {
+        grid-template-columns: 1fr;
+      }
+
+      .form-actions {
+        flex-direction: column;
+      }
+
+      .sidebar {
+        width: 100%;
+        right: -100%;
+      }
+
+      #map {
+        height: 300px;
+      }
     }
 
-    .empty-state i {
-      font-size: 3rem;
-      margin-bottom: 1rem;
-      color: var(--border-color);
+    /* Notificaciones */
+    .notification {
+      position: fixed;
+      top: 2rem;
+      right: 2rem;
+      background: var(--white);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      padding: 1rem 1.5rem;
+      box-shadow: var(--shadow-lg);
+      z-index: 2000;
+      transform: translateX(100%);
+      opacity: 0;
+      transition: all 0.3s ease;
+      max-width: 400px;
     }
 
-    .empty-state h3 {
-      margin-bottom: 0.5rem;
-      color: var(--text-primary);
+    .notification.show {
+      transform: translateX(0);
+      opacity: 1;
     }
 
-    .fade-in {
-      animation: fadeIn 0.5s ease;
+    .notification-success {
+      border-left: 4px solid var(--success);
     }
 
-    @keyframes fadeIn {
-      from { opacity: 0; transform: translateY(20px); }
-      to { opacity: 1; transform: translateY(0); }
-    }
-
-    .comments-title {
-      display: flex;
-      align-items: center;
-      gap: 0.75rem;
-      font-size: 1.25rem;
-      font-weight: 600;
-      color: var(--text-primary);
-      margin-bottom: 1.5rem;
-      padding-bottom: 0.75rem;
-      border-bottom: 1px solid var(--border-color);
-    }
-
-    .comments-title i {
-      color: var(--primary-color);
+    .notification-error {
+      border-left: 4px solid #dc3545;
     }
 
     .comment-card {
-      background: var(--secondary-color);
-      border: 1px solid var(--border-color);
-      border-radius: var(--radius-lg);
-      padding: 1.5rem;
-      margin-bottom: 1rem;
       transition: all 0.2s ease;
     }
 
@@ -427,23 +700,218 @@
       .comment-form {
         padding: 1.5rem;
       }
+
+      /* Controles del mapa en móvil */
+      .map-controls {
+        top: 90px;
+        left: 1rem;
+        right: 1rem;
+        max-width: none;
+        flex-direction: column;
+        gap: 0.75rem;
+      }
+
+      .coordinates-container {
+        flex-wrap: wrap;
+        gap: 0.5rem;
+      }
+
+      .coordinate-group {
+        flex: 1;
+        min-width: 120px;
+      }
+
+      .coordinate-group input {
+        width: 100%;
+        min-width: 80px;
+      }
+
+      .search-bar {
+        padding: 0.5rem 0.75rem;
+      }
+
+      .layers-menu {
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        width: 250px;
+        max-width: calc(100vw - 2rem);
+      }
+    }
+
+    @media (max-width: 480px) {
+      .map-controls {
+        gap: 0.5rem;
+      }
+
+      .coordinates-container {
+        flex-direction: column;
+      }
+
+      .coordinate-group {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.25rem;
+      }
+
+      .coordinate-group input {
+        width: 100%;
+      }
+    }
+
+    /* Botón flotante */
+    .floating-btn {
+      position: fixed;
+      bottom: 30px;
+      right: 30px;
+      width: 60px;
+      height: 60px;
+      background: var(--primary-color);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      box-shadow: 0 4px 20px rgba(0, 123, 255, 0.3);
+      transition: all 0.3s ease;
+      z-index: 1000;
+      color: white;
+      font-size: 1.2rem;
+    }
+
+    .floating-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 25px rgba(0, 123, 255, 0.4);
+      background: #0056b3;
+    }
+
+    .floating-btn:active {
+      transform: translateY(0);
+    }
+
+    @media (max-width: 768px) {
+      .floating-btn {
+        bottom: 20px;
+        right: 20px;
+        width: 50px;
+        height: 50px;
+        font-size: 1rem;
+      }
+    }
+
+    /* Marcadores personalizados */
+    .temp-marker {
+      background: #ff6b6b;
+      color: white;
+      border: 2px solid white;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 2px 8px rgba(255, 107, 107, 0.3);
+      animation: pulse 1.5s infinite;
+    }
+
+    .user-request-marker {
+      background: #28a745;
+      color: white;
+      border: 2px solid white;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 2px 8px rgba(40, 167, 69, 0.3);
+    }
+
+    @keyframes pulse {
+      0% {
+        box-shadow: 0 2px 8px rgba(255, 107, 107, 0.3);
+      }
+      50% {
+        box-shadow: 0 2px 15px rgba(255, 107, 107, 0.6);
+        transform: scale(1.05);
+      }
+      100% {
+        box-shadow: 0 2px 8px rgba(255, 107, 107, 0.3);
+      }
+    }
+
+    /* Marcador de ubicación seleccionada */
+    .location-marker {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      /* IMPORTANTE: No usar transform aquí; Leaflet usa transform para posicionar */
+    }
+
+    .location-marker .marker-inner {
+      background: #007bff;
+      color: white;
+      border: 3px solid white;
+      border-radius: 50% 50% 50% 0;
+      width: 100%;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 3px 10px rgba(0, 123, 255, 0.4);
+      transform: rotate(-45deg);
+      animation: bounce 1s ease-in-out infinite alternate;
+    }
+
+    .location-marker .marker-inner i {
+      transform: rotate(45deg);
+      font-size: 16px;
+    }
+
+    @keyframes bounce {
+      0% { transform: rotate(-45deg) translateY(0); }
+      100% { transform: rotate(-45deg) translateY(-5px); }
+    }
+
+    /* Popup de ubicación */
+    .location-popup {
+      padding: 1rem;
+      min-width: 250px;
+    }
+
+    .popup-actions {
+      display: flex;
+      gap: 0.5rem;
+      justify-content: space-between;
+    }
+
+    .popup-btn {
+      flex: 1;
+      padding: 0.5rem;
+      font-size: 0.875rem;
+      border-radius: var(--radius);
+      border: none;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.25rem;
+      transition: all 0.2s ease;
+    }
+
+    .popup-btn:hover {
+      transform: translateY(-1px);
     }
   </style>
 </head>
 <body>
-  <!-- Header moderno -->
+  <!-- Header con logo de JP -->
   <header class="header">
     <div class="header-content">
-      <div class="logo">
-        <img src="/static/JPlogo.png" alt="Logo" style="height: 100px;">
+      <img src="/static/JP_V2.png" alt="Junta de Planificación" class="logo-jp">
+      <div class="header-title">
+        <h1>Geoportal Público</h1>
+        <p>Sistema de Comentarios y Solicitudes Georreferenciadas</p>
       </div>
       <div class="header-actions">
-        <button class="btn btn-secondary" onclick="toggleInfo()">
-          <i class="fas fa-info-circle"></i>
-          Información
-        </button>
-
-         <a href="/admin" class="btn btn-secondary" >
+        <a href="/admin" class="btn btn-secondary">
           <i class="fas fa-cog"></i>
           Administración
         </a>
@@ -451,27 +919,223 @@
     </div>
   </header>
 
-  <!-- Mapa -->
-  <div id="map"></div>
+  <!-- Contenedor principal -->
+  <main class="main-container">
+    <div class="form-card">
+      <!-- Header del formulario -->
+      <div class="form-header">
+        <h2>
+          <i class="fas fa-file-plus"></i>
+          Nueva Solicitud o Comentario
+        </h2>
+        <p>Complete el formulario y marque la ubicación en el mapa</p>
+      </div>
 
-  <!-- Sidebar moderna -->
-  <div class="sidebar" id="sidebar">
-    <button class="close-btn" onclick="closeSidebar()">
-      <i class="fas fa-times"></i>
-    </button>
-    
-    <div class="sidebar-header">
-      <div class="sidebar-title" id="sidebarTitle">Selecciona un punto</div>
-      <div class="sidebar-subtitle">Haz clic en el mapa para ver comentarios</div>
+      <!-- Contenido del formulario -->
+      <div class="form-content">
+        <form id="uploadForm" enctype="multipart/form-data">
+          <!-- Sección del mapa -->
+          <div class="map-section">
+            <h3 class="section-title">
+              <i class="fas fa-map-marker-alt"></i>
+              Localización de su Comentario
+            </h3>
+            <div class="map-instructions">
+              <i class="fas fa-info-circle"></i>
+              Marque en el mapa el lugar donde va dirigido su comentario.
+            </div>
+            
+            <div class="map-container">
+              <div id="map"></div>
+            </div>
+
+            <!-- Coordenadas -->
+            <div class="coordinates-display">
+              <div class="coord-group">
+                <label>Lat:</label>
+                <input type="text" id="lat-display" name="lat" readonly>
+              </div>
+              <div class="coord-group">
+                <label>Lon:</label>
+                <input type="text" id="lng-display" name="lng" readonly>
+              </div>
+            </div>
+          </div>
+
+          <!-- Campos del formulario -->
+          <div class="form-fields">
+            <div class="field-group">
+              <div class="field">
+                <label class="required">
+                  <i class="fas fa-user"></i>
+                  Nombre
+                </label>
+                <input type="text" id="name" name="name" required>
+              </div>
+              <div class="field">
+                <label class="required">
+                  <i class="fas fa-envelope"></i>
+                  Correo Electrónico
+                </label>
+                <input type="email" id="email" name="email" required>
+              </div>
+            </div>
+
+            <div class="field-group">
+              <div class="field">
+                <label class="required">
+                  <i class="fas fa-map-marker-alt"></i>
+                  Municipio
+                </label>
+                <select id="municipality" name="municipality" required>
+                  <option value="">Seleccionar municipio</option>
+                  <option value="Adjuntas">Adjuntas</option>
+                  <option value="Aguada">Aguada</option>
+                  <option value="Aguadilla">Aguadilla</option>
+                  <option value="Aguas Buenas">Aguas Buenas</option>
+                  <option value="Aibonito">Aibonito</option>
+                  <option value="Arecibo">Arecibo</option>
+                  <option value="Arroyo">Arroyo</option>
+                  <option value="Barceloneta">Barceloneta</option>
+                  <option value="Barranquitas">Barranquitas</option>
+                  <option value="Bayamón">Bayamón</option>
+                  <option value="Cabo Rojo">Cabo Rojo</option>
+                  <option value="Caguas">Caguas</option>
+                  <option value="Camuy">Camuy</option>
+                  <option value="Canóvanas">Canóvanas</option>
+                  <option value="Carolina">Carolina</option>
+                  <option value="Cataño">Cataño</option>
+                  <option value="Cayey">Cayey</option>
+                  <option value="Ceiba">Ceiba</option>
+                  <option value="Cidra">Cidra</option>
+                  <option value="Coamo">Coamo</option>
+                  <option value="Comerío">Comerío</option>
+                  <option value="Corozal">Corozal</option>
+                  <option value="Culebra">Culebra</option>
+                  <option value="Dorado">Dorado</option>
+                  <option value="Fajardo">Fajardo</option>
+                  <option value="Florida">Florida</option>
+                  <option value="Guánica">Guánica</option>
+                  <option value="Guayama">Guayama</option>
+                  <option value="Guayanilla">Guayanilla</option>
+                  <option value="Guaynabo">Guaynabo</option>
+                  <option value="Gurabo">Gurabo</option>
+                  <option value="Hatillo">Hatillo</option>
+                  <option value="Hormigueros">Hormigueros</option>
+                  <option value="Humacao">Humacao</option>
+                  <option value="Isabela">Isabela</option>
+                  <option value="Jayuya">Jayuya</option>
+                  <option value="Juana Díaz">Juana Díaz</option>
+                  <option value="Juncos">Juncos</option>
+                  <option value="Lajas">Lajas</option>
+                  <option value="Lares">Lares</option>
+                  <option value="Las Marías">Las Marías</option>
+                  <option value="Las Piedras">Las Piedras</option>
+                  <option value="Loíza">Loíza</option>
+                  <option value="Luquillo">Luquillo</option>
+                  <option value="Manatí">Manatí</option>
+                  <option value="Maricao">Maricao</option>
+                  <option value="Maunabo">Maunabo</option>
+                  <option value="Mayagüez">Mayagüez</option>
+                  <option value="Moca">Moca</option>
+                  <option value="Morovis">Morovis</option>
+                  <option value="Naguabo">Naguabo</option>
+                  <option value="Naranjito">Naranjito</option>
+                  <option value="Orocovis">Orocovis</option>
+                  <option value="Patillas">Patillas</option>
+                  <option value="Peñuelas">Peñuelas</option>
+                  <option value="Ponce">Ponce</option>
+                  <option value="Quebradillas">Quebradillas</option>
+                  <option value="Rincón">Rincón</option>
+                  <option value="Río Grande">Río Grande</option>
+                  <option value="Sabana Grande">Sabana Grande</option>
+                  <option value="Salinas">Salinas</option>
+                  <option value="San Germán">San Germán</option>
+                  <option value="San Juan">San Juan</option>
+                  <option value="San Lorenzo">San Lorenzo</option>
+                  <option value="San Sebastián">San Sebastián</option>
+                  <option value="Santa Isabel">Santa Isabel</option>
+                  <option value="Toa Alta">Toa Alta</option>
+                  <option value="Toa Baja">Toa Baja</option>
+                  <option value="Trujillo Alto">Trujillo Alto</option>
+                  <option value="Utuado">Utuado</option>
+                  <option value="Vega Alta">Vega Alta</option>
+                  <option value="Vega Baja">Vega Baja</option>
+                  <option value="Vieques">Vieques</option>
+                  <option value="Villalba">Villalba</option>
+                  <option value="Yabucoa">Yabucoa</option>
+                  <option value="Yauco">Yauco</option>
+                </select>
+              </div>
+              <div class="field">
+                <label class="required">
+                  <i class="fas fa-building"></i>
+                  Entidad
+                </label>
+                <input type="text" id="entity" name="entity" placeholder="Ej: Municipio, Agencia, Empresa" required>
+              </div>
+            </div>
+
+            <div class="field full-width">
+              <label>
+                <i class="fas fa-paperclip"></i>
+                Archivo Adjunto
+              </label>
+              <div class="file-upload" onclick="document.getElementById('file').click()">
+                <input type="file" id="file" name="file" accept=".pdf,.doc,.docx,.txt,.jpg,.jpeg,.png,.zip">
+                <div class="file-upload-content">
+                  <i class="fas fa-cloud-upload-alt file-upload-icon"></i>
+                  <div class="file-upload-text">Seleccionar archivo</div>
+                  <div class="file-upload-hint">Formatos permitidos: PDF, Word, TXT, JPG, PNG, ZIP (máx. 10MB)</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="field full-width">
+              <label class="required">
+                <i class="fas fa-comment"></i>
+                Comentarios
+              </label>
+              <textarea id="comments" name="comments" rows="4" placeholder="Describe tu solicitud o comentario..." required></textarea>
+            </div>
+          </div>
+
+          <!-- Botones de acción -->
+          <div class="form-actions">
+            <button type="button" class="btn btn-secondary" onclick="resetForm()">
+              <i class="fas fa-undo"></i>
+              Limpiar
+            </button>
+            <button type="submit" class="btn btn-primary">
+              <i class="fas fa-paper-plane"></i>
+              Enviar Solicitud
+            </button>
+          </div>
+        </form>
+      </div>
     </div>
-    
+  </main>
+
+  <!-- Sidebar para ver comentarios -->
+  <div class="sidebar" id="sidebar">
+    <div class="sidebar-header">
+      <h3 class="sidebar-title" id="sidebarTitle">Comentarios</h3>
+      <button class="close-sidebar" onclick="closeSidebar()">
+        <i class="fas fa-times"></i>
+      </button>
+    </div>
     <div class="sidebar-content" id="sidebarContent">
       <div class="empty-state">
         <i class="fas fa-mouse-pointer"></i>
         <h3>Selecciona un punto en el mapa</h3>
-        <p>Haz clic en cualquier marcador para ver y agregar comentarios.</p>
+        <p>Haz clic en cualquier marcador para ver comentarios existentes.</p>
       </div>
     </div>
+  </div>
+
+  <!-- Notificaciones -->
+  <div id="notification" class="notification">
+    <div id="notificationContent"></div>
   </div>
 
   <script src="https://unpkg.com/leaflet@1.9.3/dist/leaflet.js"></script>
