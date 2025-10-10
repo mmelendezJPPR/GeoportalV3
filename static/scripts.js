@@ -8,11 +8,15 @@ let layersControl; // Referencia al control de capas
 // Si conoces el ID exacto de la subcapa de carreteras en 'Parcelas', colócalo aquí; si no, se intenta detectar automáticamente
 const PARCELAS_ROADS_SUBLAYER_ID = null;
 
+// Variables para optimización de rendimiento
+let zoomChangeTimeout = null;
+let layerRequestCache = new Map(); // Cache para requests de capas
+let lastZoomLevel = null;
+
 // Configuración de zoom para activación de capas
 const LAYER_ZOOM_CONFIG = {
   planUsos: { minZoom: 10, maxZoom: 19 },     // Plan de Usos se activa a partir de zoom 10
-  parcelas: { minZoom: 13, maxZoom: 19 },     // Parcelas se activa a partir de zoom 13 (más detallado)
-  comentarios: { minZoom: 11, maxZoom: 19 }   // Comentarios se activa a partir de zoom 11
+  parcelas: { minZoom: 13, maxZoom: 19 }      // Parcelas se activa a partir de zoom 13 (más detallado)
 };
 
 // Configuración de validación de archivos (lado cliente)
@@ -75,12 +79,24 @@ document.addEventListener('DOMContentLoaded', function() {
 
   // Eventos del mapa
   map.on('click', function(e) {
-    // Si se hizo click en un marcador o popup, no hacer nada
+    console.log('🖱️ Click en mapa detectado:', e.latlng);
+    
+    // Si se hizo click en un marcador, popup, o elementos de UI, no hacer nada
     if (e.originalEvent.target.closest('.leaflet-marker-icon') || 
         e.originalEvent.target.closest('.leaflet-popup') ||
-        e.originalEvent.target.closest('.leaflet-div-icon')) {
+        e.originalEvent.target.closest('.leaflet-div-icon') ||
+        e.originalEvent.target.closest('.leaflet-control')) {
+      console.log('🚫 Click ignorado - elemento de UI');
       return;
     }
+    
+    // Verificar si el click fue en una capa de carreteras (path SVG)
+    if (e.originalEvent.target.tagName === 'path') {
+      console.log('🛣️ Click en carretera detectado - ignorando para permitir selección de ubicación');
+      // No hacer return aquí - permitir que se procese como click normal del mapa
+    }
+    
+    console.log('✅ Procesando click para crear marcador');
     
     // Cerrar sidebar si está abierto
     closeSidebar();
@@ -89,9 +105,23 @@ document.addEventListener('DOMContentLoaded', function() {
     createLocationMarker(e.latlng.lat, e.latlng.lng);
   });
 
-  // Evento de cambio de zoom para activación dinámica de capas
+  // Evento de cambio de zoom para activación dinámica de capas (con debouncing)
   map.on('zoomend', function() {
-    handleZoomBasedLayerActivation();
+    // Limpiar timeout anterior para evitar múltiples llamadas
+    if (zoomChangeTimeout) {
+      clearTimeout(zoomChangeTimeout);
+    }
+    
+    // Debouncing: esperar 150ms antes de procesar el cambio de zoom
+    zoomChangeTimeout = setTimeout(() => {
+      const currentZoom = map.getZoom();
+      
+      // Solo procesar si el zoom realmente cambió de manera significativa
+      if (lastZoomLevel === null || Math.abs(currentZoom - lastZoomLevel) >= 1) {
+        lastZoomLevel = currentZoom;
+        handleZoomBasedLayerActivation();
+      }
+    }, 150);
   });
 
   // Inicializar controles del formulario
@@ -107,76 +137,84 @@ function setupMapLayers() {
     maxZoom: 19
   });
 
-  // Capa Plan de Usos - MIPR usando dynamic map layer (no tiene tiles cacheados)
+  // Capa Plan de Usos - MIPR optimizada para mostrar solo texto sin colores
   mapLayers.planUsos = L.esri.dynamicMapLayer({
     url: 'https://sige.pr.gov/server/rest/services/MIPR/PUT_v10/MapServer',
     attribution: '&copy; SIGE Puerto Rico - Plan de Usos del Territorio',
-    opacity: 0.7,
+    opacity: 0.9, // Mayor opacidad para texto más legible
     transparent: true,
-    format: 'png32',
-    zIndex: 300
+    format: 'png8', // Formato más liviano que png32
+    zIndex: 300,
+    // Optimizaciones para mejor rendimiento
+    useCors: false
+    // La configuración dinámica se aplicará en optimizePlanUsosForCurrentZoom()
   });
 
-  // Capa Parcelas - Colaboración CRIM-JP usando dynamic map layer
-  mapLayers.parcelas = L.esri.dynamicMapLayer({
-    url: 'https://sige.pr.gov/server/rest/services/Crim_collaboration/cali_jp_colaboracion/MapServer',
-    attribution: '&copy; SIGE Puerto Rico - Parcelas CRIM-JP',
-    opacity: 1.0,
-    transparent: true,
-    format: 'png32',
-    layers: [0],
-    zIndex: 400
+  // Capa Parcelas - Usar featureLayer para mejor control de estilo
+  // Este enfoque permite aplicar estilos directamente sin problemas de bucles
+  // Nota: Intentaremos subcapa 0, si falla, se puede cambiar a 1, 2, etc.
+  mapLayers.parcelas = L.esri.featureLayer({
+    url: 'https://sige.pr.gov/server/rest/services/Crim_collaboration/cali_jp_colaboracion/MapServer/0',
+    attribution: '&copy; SIGE Puerto Rico - Carreteras',
+    style: function (feature) {
+      return {
+        color: '#ff0000',        // Rojo brillante
+        weight: 4,               // Grosor de línea
+        opacity: 1,              // Sin transparencia
+        fillOpacity: 0,          // Sin relleno
+        interactive: false       // IMPORTANTE: No interceptar eventos de click
+      };
+    },
+    where: "1=1", // Mostrar todos los elementos primero, luego filtraremos si es necesario
+    zIndex: 400,
+    // Deshabilitar interactividad para no interferir con clicks del mapa
+    bubblingMouseEvents: false,
+    // Configuración adicional para debugging
+    onEachFeature: function(feature, layer) {
+      // Deshabilitar eventos de click en las carreteras
+      layer.options.interactive = false;
+      // Agregar popup para debugging solo con hover (opcional)
+      if (feature.properties) {
+        const props = feature.properties;
+        layer.bindTooltip(`Tipo: ${props.TIPO_VIA || props.TIPO || 'N/A'}<br>Nombre: ${props.NOMBRE || props.NAME || 'N/A'}`, {
+          permanent: false,
+          direction: 'top',
+          interactive: false
+        });
+      }
+    }
+  }).on('load', function() {
+    console.log('✅ Capa de Carreteras cargada exitosamente');
+    // Asegurar que la capa no sea interactiva después de cargar
+    this.eachLayer(function(layer) {
+      layer.options.interactive = false;
+      if (layer._path) {
+        layer._path.style.pointerEvents = 'none'; // CSS para deshabilitar eventos
+      }
+    });
+  }).on('error', function(e) {
+    console.error('❌ Error cargando capa de Carreteras:', e);
+    // Si falla con subcapa 0, intentar con subcapa 1
+    console.log('🔄 Reintentando con subcapa 1...');
+    this.options.url = 'https://sige.pr.gov/server/rest/services/Crim_collaboration/cali_jp_colaboracion/MapServer/1';
+    this.refresh();
   });
 
-  // Limitar Parcelas solo a carreteras si se conoce el ID o si se puede detectar automáticamente
-  if (Number.isInteger(PARCELAS_ROADS_SUBLAYER_ID)) {
-    mapLayers.parcelas.setLayers([PARCELAS_ROADS_SUBLAYER_ID]);
-    console.log('🚧 Parcelas configurado a subcapa de carreteras (ID fijo):', PARCELAS_ROADS_SUBLAYER_ID);
-  } else {
-    autoSelectParcelasRoadsSublayer(mapLayers.parcelas);
-  }
-
-  // Capa Comentarios PUT usando dynamic map layer
-  mapLayers.comentarios = L.esri.dynamicMapLayer({
-    url: 'https://sige.pr.gov/server/rest/services/cali_clasi/comentarios_put/MapServer',
-    attribution: '&copy; SIGE Puerto Rico - Comentarios PUT',
-    opacity: 1.0,
-    transparent: true,
-    format: 'png32',
-    layers: [0],
-    zIndex: 500
-  });
+  // Ya no necesitamos configuración adicional para featureLayer
+  // El estilo y filtros ya están aplicados en la configuración inicial
+  console.log('✅ Capa de Carreteras configurada con featureLayer y estilo rojo directo');
 
   // Añadir logging para diagnosticar problemas de carga
   mapLayers.planUsos.on('load', () => {
     console.log('✅ Plan de Usos cargado correctamente');
-    hideLayerLoadingIndicator('planUsos');
   });
   mapLayers.planUsos.on('error', (e) => console.error('❌ Error en Plan de Usos:', e));
-  mapLayers.planUsos.on('requeststart', (e) => {
-    console.log('🔄 Plan de Usos - Request:', e.url);
-    showLayerLoadingIndicator('planUsos');
-  });
 
   mapLayers.parcelas.on('load', () => {
     console.log('✅ Parcelas cargado correctamente');
-    hideLayerLoadingIndicator('parcelas');
+    // NO llamar forceRedStyleOnParcelas aquí para evitar bucle infinito
   });
   mapLayers.parcelas.on('error', (e) => console.error('❌ Error en Parcelas:', e));
-  mapLayers.parcelas.on('requeststart', (e) => {
-    console.log('🔄 Parcelas - Request:', e.url);
-    showLayerLoadingIndicator('parcelas');
-  });
-
-  mapLayers.comentarios.on('load', () => {
-    console.log('✅ Comentarios cargado correctamente');
-    hideLayerLoadingIndicator('comentarios');
-  });
-  mapLayers.comentarios.on('error', (e) => console.error('❌ Error en Comentarios:', e));
-  mapLayers.comentarios.on('requeststart', (e) => {
-    console.log('🔄 Comentarios - Request:', e.url);
-    showLayerLoadingIndicator('comentarios');
-  });
 
   // Agregar base layer por defecto
   mapLayers[currentLayer].addTo(map);
@@ -191,8 +229,7 @@ function setupMapLayers() {
 
   const overlays = {
     "🗺️ Plan de Usos": mapLayers.planUsos,
-    "🏘️ Parcelas": mapLayers.parcelas,
-    "💬 Comentarios": mapLayers.comentarios
+    "🛣️ Carreteras": mapLayers.parcelas
   };
 
   // Agregar control de capas al mapa
@@ -220,25 +257,23 @@ function setupMapLayers() {
   setTimeout(() => handleZoomBasedLayerActivation(), 100);
 }
 
-// Busca automáticamente una subcapa de "Carreteras" (o similar) en el servicio de Parcelas
-async function autoSelectParcelasRoadsSublayer(dynamicLayer) {
-  try {
-    const serviceUrl = dynamicLayer.options.url;
-    const resp = await fetch(`${serviceUrl}?f=json`);
-    const data = await resp.json();
-
-    const layers = (data && data.layers) || [];
-    const target = layers.find(l => /carreter|road|vial/i.test(l.name || ''));
-
-    if (target) {
-      dynamicLayer.setLayers([target.id]);
-      console.log(`🚧 Parcelas ajustado a subcapa de carreteras: [${target.id}] ${target.name}`);
-    } else {
-      console.warn('ℹ️ No se encontró subcapa de "Carreteras" en Parcelas; se mantiene la configuración actual.');
-    }
-  } catch (e) {
-    console.warn('⚠️ No se pudo consultar la metadata de Parcelas para ubicar "Carreteras".', e);
-  }
+// Función para crear renderer optimizado para Plan de Usos (solo texto, sin colores)
+function createTextOnlyRenderer() {
+  return {
+    type: "simple",
+    symbol: {
+      type: "esriSFS", // Simple Fill Symbol
+      style: "esriSFSSolid",
+      color: [0, 0, 0, 0], // Completamente transparente - no mostrar relleno
+      outline: {
+        type: "esriSLS",
+        style: "esriSLSSolid", 
+        color: [200, 200, 200, 100], // Borde muy sutil gris claro
+        width: 0.2
+      }
+    },
+    label: "Plan de Usos - Solo Texto"
+  };
 }
 
 // ========== FUNCIONES DE ACTIVACIÓN DINÁMICA DE CAPAS ==========
@@ -255,8 +290,14 @@ function handleZoomBasedLayerActivation() {
     const isCurrentlyActive = map.hasLayer(layer);
     
     if (isInZoomRange && !isCurrentlyActive) {
-      // Activar capa
+      // Activar capa con optimizaciones
       console.log(`🟢 Activando ${layerKey} (zoom ${currentZoom} >= ${config.minZoom})`);
+      
+      // Optimización: aplicar configuración específica según el zoom para Plan de Usos
+      if (layerKey === 'planUsos') {
+        optimizePlanUsosForCurrentZoom(layer, currentZoom);
+      }
+      
       map.addLayer(layer);
       activeOverlays.add(layerKey);
       
@@ -278,8 +319,7 @@ function handleZoomBasedLayerActivation() {
 function getLayerKeyFromName(layerName) {
   const nameMapping = {
     '🗺️ Plan de Usos': 'planUsos',
-    '🏘️ Parcelas': 'parcelas',
-    '💬 Comentarios': 'comentarios'
+    '🛣️ Carreteras': 'parcelas'
   };
   return nameMapping[layerName] || null;
 }
@@ -299,6 +339,86 @@ function updateLayerControlState(layerKey, isActive) {
     console.log(`✅ ${layerKey} marcado como activo en control`);
   } else {
     console.log(`❌ ${layerKey} marcado como inactivo en control`);
+  }
+}
+
+// Optimización específica para Plan de Usos según el nivel de zoom
+function optimizePlanUsosForCurrentZoom(layer, currentZoom) {
+  try {
+    console.log(`⚡ Optimizando Plan de Usos para zoom ${currentZoom}`);
+    
+    // Configuración dinámica según zoom para mejor rendimiento
+    if (currentZoom >= 15) {
+      // Zoom alto: mostrar texto y bordes sutiles
+      layer.setLayerDefs({
+        0: "1=1" // Mostrar todo
+      });
+      
+      // Aplicar renderer optimizado para texto
+      const dynamicLayerInfo = [{
+        id: 0,
+        source: {
+          type: "mapLayer",
+          mapLayerId: 0
+        },
+        drawingInfo: {
+          renderer: createTextOnlyRenderer(),
+          transparency: 85, // Muy transparente para que solo se vea el texto
+          labelingInfo: [{
+            labelPlacement: "esriServerPolygonPlacementAlwaysHorizontal",
+            labelExpression: "[CLAS_USO]", // Mostrar abreviaciones
+            useCodedValues: false,
+            symbol: {
+              type: "esriTS",
+              color: [0, 0, 0, 255], // Texto negro
+              backgroundColor: [255, 255, 255, 200], // Fondo blanco semi-transparente
+              borderLineColor: [100, 100, 100, 255], // Borde gris
+              borderLineSize: 0.5,
+              font: {
+                family: "Arial",
+                size: Math.min(12, Math.max(8, currentZoom - 6)), // Tamaño dinámico según zoom
+                weight: "bold"
+              }
+            },
+            minScale: 0,
+            maxScale: 5000 // Solo mostrar texto a zooms muy altos
+          }]
+        }
+      }];
+      
+      layer.setDynamicLayers(dynamicLayerInfo);
+      
+    } else if (currentZoom >= 12) {
+      // Zoom medio: solo bordes muy sutiles, sin texto para mejor rendimiento
+      layer.setLayerDefs({
+        0: "1=1"
+      });
+      
+      const simplifiedRenderer = [{
+        id: 0,
+        source: {
+          type: "mapLayer", 
+          mapLayerId: 0
+        },
+        drawingInfo: {
+          renderer: createTextOnlyRenderer(),
+          transparency: 95 // Casi completamente transparente
+        }
+      }];
+      
+      layer.setDynamicLayers(simplifiedRenderer);
+      
+    } else {
+      // Zoom bajo: solo contornos muy básicos
+      layer.setLayerDefs({
+        0: "AREA_HECTAR > 10" // Solo mostrar polígonos grandes para mejor rendimiento
+      });
+    }
+    
+    console.log(`✅ Plan de Usos optimizado para zoom ${currentZoom}`);
+    
+  } catch (e) {
+    console.warn(`⚠️ No se pudo aplicar optimización dinámica a Plan de Usos: ${e}`);
   }
 }
 
@@ -369,8 +489,7 @@ function showLayerLoadingIndicator(layerKey) {
     
     const layerNames = {
       'planUsos': 'Plan de Usos',
-      'parcelas': 'Parcelas',
-      'comentarios': 'Comentarios'
+      'parcelas': 'Carreteras'
     };
     
     indicator.innerHTML = `

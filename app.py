@@ -1,5 +1,5 @@
 from flask import Flask, request, jsonify, send_from_directory, abort, render_template, make_response
-import os, uuid, sqlite3, hashlib, logging, time
+import os, uuid, sqlite3, hashlib, logging, time, sys
 from datetime import datetime
 from werkzeug.utils import secure_filename
 import PyPDF2
@@ -59,12 +59,20 @@ FILE_SIGNATURES = {
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs("logs", exist_ok=True)
 
-# Configurar logging de seguridad
+# Configurar logging de seguridad (asegurar compatibilidad Unicode en consolas Windows)
+try:
+    # En Python 3.7+ TextIOWrapper soporta reconfigure; esto evita UnicodeEncodeError en consolas con cp1252
+    sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+    sys.stderr.reconfigure(encoding='utf-8', errors='replace')
+except Exception:
+    # Si no es posible reconfigurar, continuar sin fallo
+    pass
+
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s',
     handlers=[
-        logging.FileHandler('logs/security.log'),
+        logging.FileHandler('logs/security.log', encoding='utf-8'),
         logging.StreamHandler()
     ]
 )
