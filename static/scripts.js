@@ -3,6 +3,8 @@ let map;
 let currentFeature = null;
 let mapLayers = {};
 let currentLayer = 'satellite';
+// Si conoces el ID exacto de la subcapa de carreteras en 'Parcelas', colócalo aquí; si no, se intenta detectar automáticamente
+const PARCELAS_ROADS_SUBLAYER_ID = null;
 
 // Configuración de validación de archivos (lado cliente)
 const MAX_FILE_SIZE_CLIENT = 10 * 1024 * 1024; // 10MB
@@ -54,7 +56,7 @@ function showNotification(message, type = 'info') {
 
 document.addEventListener('DOMContentLoaded', function() {
   // Inicializar el mapa
-  map = L.map('map').setView([18.2208, -66.5901], 9);
+  map = L.map('map').setView([18.2208, -66.5901], 12);
 
   // Configurar capas del mapa
   setupMapLayers();
@@ -82,43 +84,116 @@ document.addEventListener('DOMContentLoaded', function() {
 // ========== CONFIGURACIÓN DE CAPAS DEL MAPA ==========
 
 function setupMapLayers() {
-  // Capa de satélite por defecto
+  // Capa de satélite por defecto (tiene tiles cacheados)
   mapLayers.satellite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
     attribution: 'Tiles &copy; Esri',
     maxZoom: 19
   });
 
-  // Capa de planificación
-  mapLayers.planning = L.tileLayer('https://gis.jp.pr.gov/server/rest/services/Mapa_de_Planificacion/MapServer/tile/{z}/{y}/{x}', {
-    attribution: '&copy; Junta de Planificación de Puerto Rico',
-    maxZoom: 19
+  // Capa Plan de Usos - MIPR usando dynamic map layer (no tiene tiles cacheados)
+  mapLayers.planUsos = L.esri.dynamicMapLayer({
+    url: 'https://sige.pr.gov/server/rest/services/MIPR/PUT_v10/MapServer',
+    attribution: '&copy; SIGE Puerto Rico - Plan de Usos del Territorio',
+    opacity: 0.7,
+    transparent: true,
+    format: 'png32',
+    zIndex: 300
   });
 
-  // Capa híbrida
-  mapLayers.hybrid = L.layerGroup([
-    L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
-      attribution: 'Tiles &copy; Esri',
-      maxZoom: 19
-    }),
-    L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}', {
-      maxZoom: 19
-    })
-  ]);
-
-  // Capa de calles
-  mapLayers.street = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    attribution: '&copy; OpenStreetMap contributors',
-    maxZoom: 19
+  // Capa Parcelas - Colaboración CRIM-JP usando dynamic map layer
+  mapLayers.parcelas = L.esri.dynamicMapLayer({
+    url: 'https://sige.pr.gov/server/rest/services/Crim_collaboration/cali_jp_colaboracion/MapServer',
+    attribution: '&copy; SIGE Puerto Rico - Parcelas CRIM-JP',
+    opacity: 1.0,
+    transparent: true,
+    format: 'png32',
+    layers: [0],
+    zIndex: 400
   });
 
-  // Capa de terreno
-  mapLayers.terrain = L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
-    attribution: 'Map data: &copy; OpenStreetMap contributors, SRTM | Map style: &copy; OpenTopoMap',
-    maxZoom: 17
+  // Limitar Parcelas solo a carreteras si se conoce el ID o si se puede detectar automáticamente
+  if (Number.isInteger(PARCELAS_ROADS_SUBLAYER_ID)) {
+    mapLayers.parcelas.setLayers([PARCELAS_ROADS_SUBLAYER_ID]);
+    console.log('🚧 Parcelas configurado a subcapa de carreteras (ID fijo):', PARCELAS_ROADS_SUBLAYER_ID);
+  } else {
+    autoSelectParcelasRoadsSublayer(mapLayers.parcelas);
+  }
+
+  // Capa Comentarios PUT usando dynamic map layer
+  mapLayers.comentarios = L.esri.dynamicMapLayer({
+    url: 'https://sige.pr.gov/server/rest/services/cali_clasi/comentarios_put/MapServer',
+    attribution: '&copy; SIGE Puerto Rico - Comentarios PUT',
+    opacity: 1.0,
+    transparent: true,
+    format: 'png32',
+    layers: [0],
+    zIndex: 500
   });
 
-  // Agregar capa por defecto
+  // Añadir logging para diagnosticar problemas de carga
+  mapLayers.planUsos.on('load', () => console.log('✅ Plan de Usos cargado correctamente'));
+  mapLayers.planUsos.on('error', (e) => console.error('❌ Error en Plan de Usos:', e));
+  mapLayers.planUsos.on('requeststart', (e) => console.log('🔄 Plan de Usos - Request:', e.url));
+
+  mapLayers.parcelas.on('load', () => console.log('✅ Parcelas cargado correctamente'));
+  mapLayers.parcelas.on('error', (e) => console.error('❌ Error en Parcelas:', e));
+  mapLayers.parcelas.on('requeststart', (e) => console.log('🔄 Parcelas - Request:', e.url));
+
+  mapLayers.comentarios.on('load', () => console.log('✅ Comentarios cargado correctamente'));
+  mapLayers.comentarios.on('error', (e) => console.error('❌ Error en Comentarios:', e));
+  mapLayers.comentarios.on('requeststart', (e) => console.log('🔄 Comentarios - Request:', e.url));
+
+  // Agregar base layer por defecto
   mapLayers[currentLayer].addTo(map);
+
+  // Agregar overlays por defecto (puedes ajustar cuáles se muestran inicialmente)
+  mapLayers.planUsos.addTo(map);
+  mapLayers.parcelas.addTo(map);
+  // Dejar comentarios opcionalmente apagado al inicio
+  // mapLayers.comentarios.addTo(map);
+
+  // Crear control de capas: Satélite como base; las demás como overlays con checkboxes
+  const baseLayers = {
+    "🛰️ Satélite": mapLayers.satellite
+  };
+
+  const overlays = {
+    "🗺️ Plan de Usos": mapLayers.planUsos,
+    "🏘️ Parcelas": mapLayers.parcelas,
+    "💬 Comentarios": mapLayers.comentarios
+  };
+
+  // Agregar control de capas al mapa
+  const layersControl = L.control.layers(baseLayers, overlays, {
+    position: 'topright',
+    collapsed: true
+  }).addTo(map);
+
+  // Diagnóstico ligero para cambios de capas
+  map.on('baselayerchange', (e) => console.log('🔁 Base layer cambiado a:', e.name));
+  map.on('overlayadd', (e) => console.log('➕ Overlay activado:', e.name));
+  map.on('overlayremove', (e) => console.log('➖ Overlay desactivado:', e.name));
+}
+
+// Busca automáticamente una subcapa de "Carreteras" (o similar) en el servicio de Parcelas
+async function autoSelectParcelasRoadsSublayer(dynamicLayer) {
+  try {
+    const serviceUrl = dynamicLayer.options.url;
+    const resp = await fetch(`${serviceUrl}?f=json`);
+    const data = await resp.json();
+
+    const layers = (data && data.layers) || [];
+    const target = layers.find(l => /carreter|road|vial/i.test(l.name || ''));
+
+    if (target) {
+      dynamicLayer.setLayers([target.id]);
+      console.log(`🚧 Parcelas ajustado a subcapa de carreteras: [${target.id}] ${target.name}`);
+    } else {
+      console.warn('ℹ️ No se encontró subcapa de "Carreteras" en Parcelas; se mantiene la configuración actual.');
+    }
+  } catch (e) {
+    console.warn('⚠️ No se pudo consultar la metadata de Parcelas para ubicar "Carreteras".', e);
+  }
 }
 
 // ========== FUNCIONES DEL MARCADOR DE UBICACIÓN ==========
@@ -188,14 +263,23 @@ function resetForm() {
     window.currentLocationMarker = null;
   }
   
-  // Restaurar el display del upload de archivo
+  // Restaurar el display del upload de archivo CON BORDE
   const fileUploadContent = document.querySelector('.file-upload-content');
+  const fileUploadArea = document.querySelector('.file-upload-area');
+  
   if (fileUploadContent) {
     fileUploadContent.innerHTML = `
       <i class="fas fa-cloud-upload-alt file-upload-icon"></i>
       <div class="file-upload-text">Seleccionar archivo</div>
-      <div class="file-upload-hint">Formatos permitidos: PDF, Word, TXT, JPG, PNG, ZIP (máx. 10MB)</div>
+      <div class="file-upload-hint">⚠️ SOLO archivos PDF con texto extraíble (NO imágenes escaneadas)</div>
     `;
+  }
+  
+  // Restaurar borde por defecto
+  if (fileUploadArea) {
+    fileUploadArea.style.border = "2px dashed #9ca3af";
+    fileUploadArea.style.borderRadius = "8px";
+    fileUploadArea.style.backgroundColor = "rgba(156, 163, 175, 0.1)";
   }
   
   // Enfocar el primer campo
@@ -209,21 +293,88 @@ function resetForm() {
   }
 }
 
-// ========== INICIALIZACIÓN DE CONTROLES DEL FORMULARIO ==========
+// ========== ARCHIVO UPLOAD ==========
 
-function initFormControls() {
-  const uploadForm = document.getElementById('uploadForm');
-  if (uploadForm) {
-    uploadForm.addEventListener('submit', handleUploadSubmit);
+function updateFileUploadDisplay(file) {
+  const fileUploadContent = document.querySelector('.file-upload-content');
+  const fileUploadArea = document.querySelector('.file-upload-area'); // Referencia al contenedor principal
+  
+  if (!file) {
+    fileUploadContent.innerHTML = `
+      <i class="fas fa-cloud-upload-alt file-upload-icon"></i>
+      <div class="file-upload-text">Seleccionar archivo</div>
+      <div class="file-upload-hint">⚠️ SOLO archivos PDF con texto extraíble (NO imágenes escaneadas)</div>
+    `;
+    
+    // Aplicar borde por defecto
+    if (fileUploadArea) {
+      fileUploadArea.style.border = "2px dashed #9ca3af";
+      fileUploadArea.style.borderRadius = "8px";
+      fileUploadArea.style.backgroundColor = "rgba(156, 163, 175, 0.1)";
+    }
+    return;
   }
   
-  // Inicializar manejo de archivos
-  initFileUpload();
+  // Validaciones para solo PDF
+  const maxSize = 10 * 1024 * 1024; // 10MB
+  const fileName = file.name.toLowerCase();
+  const fileExtension = fileName.split('.').pop();
+  
+  // Solo permitir PDF
+  if (fileExtension !== 'pdf') {
+    fileUploadContent.innerHTML = `
+      <i class="fas fa-exclamation-triangle file-upload-icon" style="color: #dc3545;"></i>
+      <div class="file-upload-text" style="color: #dc3545;">Tipo de archivo no permitido</div>
+      <div class="file-upload-hint" style="color: #dc3545;">⚠️ SOLO se permiten archivos PDF con texto extraíble</div>
+    `;
+    
+    // Aplicar borde de error
+    if (fileUploadArea) {
+      fileUploadArea.style.border = "2px solid #dc3545";
+      fileUploadArea.style.borderRadius = "8px";
+      fileUploadArea.style.backgroundColor = "rgba(220, 53, 69, 0.1)";
+    }
+    return;
+  }
+  
+  // Verificar tamaño
+  if (file.size > maxSize) {
+    fileUploadContent.innerHTML = `
+      <i class="fas fa-exclamation-triangle file-upload-icon" style="color: #dc3545;"></i>
+      <div class="file-upload-text" style="color: #dc3545;">Archivo muy grande</div>
+      <div class="file-upload-hint" style="color: #dc3545;">Tamaño máximo: 10MB</div>
+    `;
+    
+    // Aplicar borde de error
+    if (fileUploadArea) {
+      fileUploadArea.style.border = "2px solid #dc3545";
+      fileUploadArea.style.borderRadius = "8px";
+      fileUploadArea.style.backgroundColor = "rgba(220, 53, 69, 0.1)";
+    }
+    return;
+  }
+  
+  // Archivo válido
+  const fileSizeMB = (file.size / (1024 * 1024)).toFixed(2);
+  fileUploadContent.innerHTML = `
+    <i class="fas fa-file-pdf file-upload-icon" style="color: #28a745;"></i>
+    <div class="file-upload-text" style="color: #28a745;">${file.name}</div>
+    <div class="file-upload-hint" style="color: #28a745;">${fileSizeMB} MB - PDF válido seleccionado</div>
+  `;
+  
+  // Aplicar borde de éxito
+  if (fileUploadArea) {
+    fileUploadArea.style.border = "2px solid #28a745";
+    fileUploadArea.style.borderRadius = "8px";
+    fileUploadArea.style.backgroundColor = "rgba(40, 167, 69, 0.1)";
+  }
 }
 
-function initFileUpload() {
-  const fileInput = document.getElementById('file');
-  const fileUploadDiv = document.querySelector('.file-upload');
+function initFormControls() {
+  // Soportar ambas variantes de IDs/clases en el HTML
+  const fileInput = document.getElementById('file') || document.getElementById('file-input');
+  const fileUploadDiv = document.querySelector('.file-upload') || document.querySelector('.file-upload-area');
+  const fileUploadArea = document.querySelector('.file-upload-area') || document.querySelector('.file-upload');
   
   if (fileInput && fileUploadDiv) {
     fileInput.addEventListener('change', function(e) {
@@ -231,327 +382,179 @@ function initFileUpload() {
       updateFileUploadDisplay(file);
     });
     
-    // Manejo de drag & drop
+    // Manejo de drag & drop CON BORDES MEJORADOS
     fileUploadDiv.addEventListener('dragover', function(e) {
       e.preventDefault();
-      fileUploadDiv.style.borderColor = 'var(--jp-blue)';
-      fileUploadDiv.style.backgroundColor = 'rgba(47, 79, 127, 0.05)';
+      if (fileUploadArea) {
+        fileUploadArea.style.border = '3px solid #6b7280';
+        fileUploadArea.style.backgroundColor = 'rgba(107, 114, 128, 0.15)';
+        fileUploadArea.style.transform = 'scale(1.02)';
+        fileUploadArea.style.transition = 'all 0.2s ease';
+      }
     });
     
     fileUploadDiv.addEventListener('dragleave', function(e) {
       e.preventDefault();
-      fileUploadDiv.style.borderColor = 'var(--border-color)';
-      fileUploadDiv.style.backgroundColor = '';
+      if (fileUploadArea) {
+        fileUploadArea.style.border = '2px dashed #9ca3af';
+        fileUploadArea.style.backgroundColor = 'rgba(156, 163, 175, 0.1)';
+        fileUploadArea.style.transform = 'scale(1)';
+      }
     });
     
     fileUploadDiv.addEventListener('drop', function(e) {
       e.preventDefault();
-      fileUploadDiv.style.borderColor = 'var(--border-color)';
-      fileUploadDiv.style.backgroundColor = '';
+      if (fileUploadArea) {
+        fileUploadArea.style.border = '2px dashed #9ca3af';
+        fileUploadArea.style.backgroundColor = 'rgba(156, 163, 175, 0.1)';
+        fileUploadArea.style.transform = 'scale(1)';
+      }
       
       const files = e.dataTransfer.files;
       if (files.length > 0) {
-        fileInput.files = files;
+        // Asignar archivo al input (compatible con diferentes navegadores)
+        if (fileInput) {
+          try {
+            fileInput.files = files;
+          } catch (err) {
+            // Fallback para navegadores que no permiten asignar directamente
+            fileInput.value = '';
+          }
+        }
         updateFileUploadDisplay(files[0]);
       }
     });
   }
+  
+  // Aplicar borde inicial al cargar la página
+  if (fileUploadArea) {
+    fileUploadArea.style.border = "2px dashed #9ca3af";
+    fileUploadArea.style.borderRadius = "8px";
+    fileUploadArea.style.backgroundColor = "rgba(156, 163, 175, 0.1)";
+    fileUploadArea.style.transition = "all 0.3s ease";
+  }
 }
 
-function updateFileUploadDisplay(file) {
-  const fileUploadContent = document.querySelector('.file-upload-content');
-  
-  if (!file) {
-    // Restaurar estado inicial
-    fileUploadContent.innerHTML = `
-      <i class="fas fa-cloud-upload-alt file-upload-icon"></i>
-      <div class="file-upload-text">Seleccionar archivo</div>
-      <div class="file-upload-hint">Formatos permitidos: PDF, Word, TXT, JPG, PNG, ZIP (máx. 10MB)</div>
-    `;
-    return;
-  }
-  
-  // Validar archivo
-  const maxSize = 10 * 1024 * 1024; // 10MB
-  const allowedTypes = ['.pdf', '.doc', '.docx', '.txt', '.jpg', '.jpeg', '.png', '.zip'];
-  const fileExtension = '.' + file.name.split('.').pop().toLowerCase();
-  
-  if (file.size > maxSize) {
-    fileUploadContent.innerHTML = `
-      <i class="fas fa-exclamation-triangle file-upload-icon" style="color: #dc3545;"></i>
-      <div class="file-upload-text" style="color: #dc3545;">Archivo muy grande</div>
-      <div class="file-upload-hint">El archivo debe ser menor a 10MB</div>
-    `;
-    document.getElementById('file').value = '';
-    return;
-  }
-  
-  if (!allowedTypes.includes(fileExtension)) {
-    fileUploadContent.innerHTML = `
-      <i class="fas fa-exclamation-triangle file-upload-icon" style="color: #dc3545;"></i>
-      <div class="file-upload-text" style="color: #dc3545;">Tipo de archivo no permitido</div>
-      <div class="file-upload-hint">Formatos permitidos: PDF, Word, TXT, JPG, PNG, ZIP</div>
-    `;
-    document.getElementById('file').value = '';
-    return;
-  }
-  
-  // Mostrar archivo seleccionado
-  const fileSize = (file.size / 1024 / 1024).toFixed(2);
-  fileUploadContent.innerHTML = `
-    <i class="fas fa-file file-upload-icon" style="color: var(--success);"></i>
-    <div class="file-upload-text" style="color: var(--success);">${file.name}</div>
-    <div class="file-upload-hint">${fileSize} MB - Haz clic para cambiar</div>
-  `;
-}
+// ========== ENVÍO DEL FORMULARIO ==========
 
-// ========== MANEJO DEL ENVÍO DEL FORMULARIO ==========
-
-function handleUploadSubmit(event) {
-  event.preventDefault();
+document.addEventListener('DOMContentLoaded', function() {
+  const form = document.getElementById('uploadForm');
   
-  const form = event.target;
-  const formData = new FormData(form);
-  
-  // Validar que se haya seleccionado una ubicación
-  const latValue = formData.get('lat');
-  const lngValue = formData.get('lng');
-  
-  if (!latValue || !lngValue || latValue === '' || lngValue === '') {
-    showNotification('Por favor, haz clic en el mapa para seleccionar una ubicación', 'error');
-    return;
-  }
-  
-  // Validar campos requeridos
-  const requiredFields = [
-    { name: 'name', label: 'Nombre' },
-    { name: 'email', label: 'Correo Electrónico' },
-    { name: 'municipality', label: 'Municipio' },
-    { name: 'entity', label: 'Entidad' },
-    { name: 'comments', label: 'Comentarios' }
-  ];
-  
-  for (let field of requiredFields) {
-    if (!formData.get(field.name) || formData.get(field.name).trim() === '') {
-      showNotification(`El campo ${field.label} es requerido`, 'error');
-      const fieldElement = document.getElementById(field.name);
-      if (fieldElement) {
-        fieldElement.focus();
-        fieldElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  if (form) {
+    form.addEventListener('submit', async function(e) {
+      e.preventDefault();
+      
+      try {
+        await handleFormSubmission();
+      } catch (error) {
+        console.error('Error en el envío del formulario:', error);
+        showNotification('Error inesperado al enviar el formulario', 'error');
+        hideSecurityProgress();
       }
+    });
+  }
+});
+
+async function handleFormSubmission() {
+  // Validar coordenadas
+  const latInput = document.querySelector('input[name="lat"]');
+  const lngInput = document.querySelector('input[name="lng"]');
+  
+  if (!latInput || !latInput.value || !lngInput || !lngInput.value) {
+    showNotification('⚠️ Por favor, seleccione una ubicación en el mapa', 'error');
+    return;
+  }
+  
+  // Preparar datos del formulario
+  const formData = new FormData(document.getElementById('uploadForm'));
+  const fileInput = document.getElementById('file') || document.getElementById('file-input');
+  
+  // Si hay archivo, procesarlo con seguridad primero
+  if (fileInput && fileInput.files && fileInput.files.length > 0) {
+    showSecurityProgress();
+    
+    // Paso 1: Subir archivo para escaneo
+    updateSecurityStep('step-upload', 'active', '🔄');
+    
+    const scanFormData = new FormData();
+    scanFormData.append('file', fileInput.files[0]);
+    
+    try {
+      const scanResponse = await fetch('/scan-file', {
+        method: 'POST',
+        body: scanFormData
+      });
+      
+      const scanResult = await scanResponse.json();
+      
+      if (!scanResponse.ok) {
+        updateSecurityStep('step-upload', 'error', '❌');
+        showNotification(scanResult.error || 'Error en el escaneo de seguridad', 'error');
+        hideSecurityProgress();
+        return;
+      }
+      
+      updateSecurityStep('step-upload', 'completed', '✅');
+      
+      // Paso 2: Escaneo ClamAV
+      updateSecurityStep('step-clamav', 'active', '🔄');
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      updateSecurityStep('step-clamav', 'completed', '✅');
+      
+      // Paso 3: Verificación VirusTotal
+      updateSecurityStep('step-virustotal', 'active', '🔄');
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      updateSecurityStep('step-virustotal', 'completed', '✅');
+      
+      // Paso 4: Validación final
+      updateSecurityStep('step-final', 'active', '🔄');
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      updateSecurityStep('step-final', 'completed', '✅');
+      
+      // Agregar el nombre del archivo escaneado al formulario
+      formData.append('scanned_filename', scanResult.filename);
+      
+    } catch (error) {
+      updateSecurityStep('step-upload', 'error', '❌');
+      showNotification('Error de conexión durante el escaneo', 'error');
+      hideSecurityProgress();
       return;
     }
   }
   
-  // MOSTRAR PROGRESO INMEDIATAMENTE (ANTES DE CUALQUIER COSA)
-  showSecurityProgress();
-  showNotification('🔒 Iniciando escaneo de seguridad del archivo...', 'info');
-  
-  // Cambiar botón a estado de carga
-  const submitBtn = form.querySelector('button[type="submit"]');
-  const originalText = submitBtn.innerHTML;
-  submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Escaneando...';
-  submitBtn.disabled = true;
-  
-  // PASO 1: Escanear archivo PRIMERO
-  const fileInput = document.getElementById('file');
-  if (fileInput && fileInput.files.length > 0) {
-    // Crear FormData solo con el archivo para escaneo
-    const scanFormData = new FormData();
-    scanFormData.append('file', fileInput.files[0]);
-    
-    fetch('/scan-file', {
-      method: 'POST',
-      body: scanFormData
-    })
-    .then(response => response.json())
-    .then(scanResult => {
-      if (scanResult.status === 'ok') {
-        // Archivo aprobado, continuar con progreso de seguridad
-        continueSecurityProgress();
-        
-        // Cambiar botón y enviar formulario completo
-        submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Enviando...';
-        
-        // PASO 2: Enviar formulario completo después de un retraso
-        setTimeout(() => {
-          fetch('/upload', {
-            method: 'POST',
-            body: formData
-          })
-          .then(response => response.json())
-          .then(result => {
-            if (result.status === 'ok') {
-              showNotification('¡Solicitud enviada exitosamente!', 'success');
-              
-              // Limpiar formulario después del éxito
-              resetForm();
-              
-              // Agregar marcador permanente en la ubicación de la solicitud
-              const lat = parseFloat(latValue);
-              const lng = parseFloat(lngValue);
-              
-              if (!isNaN(lat) && !isNaN(lng)) {
-                L.marker([lat, lng], {
-                  icon: L.divIcon({
-                    className: 'user-request-marker',
-                    html: '<i class="fas fa-file-alt"></i>',
-                    iconSize: [25, 25],
-                    iconAnchor: [12, 25]
-                  })
-                }).addTo(map)
-                  .bindPopup('<b>Solicitud enviada</b><br>Tu solicitud ha sido registrada en esta ubicación.');
-              }
-              
-            } else {
-              showNotification('Error: ' + (result.error || 'Error desconocido'), 'error');
-            }
-          })
-          .catch(error => {
-            console.error('Error enviando solicitud:', error);
-            showNotification('Error al enviar la solicitud. Por favor, inténtalo de nuevo.', 'error');
-          })
-          .finally(() => {
-            // Restaurar botón
-            submitBtn.innerHTML = originalText;
-            submitBtn.disabled = false;
-            
-            // Ocultar progreso de seguridad
-            hideSecurityProgress();
-          });
-        }, 1000); // Retraso después del escaneo
-        
-      } else {
-        // Archivo rechazado por seguridad - mostrar error en progreso
-        failSecurityProgress(scanResult.error);
-        showNotification('🚫 ' + (scanResult.error || 'Archivo rechazado por seguridad'), 'error');
-        submitBtn.innerHTML = originalText;
-        submitBtn.disabled = false;
-        hideSecurityProgress();
-      }
-    })
-    .catch(error => {
-      console.error('Error escaneando archivo:', error);
-      showNotification('Error al escanear el archivo. Por favor, inténtalo de nuevo.', 'error');
-      submitBtn.innerHTML = originalText;
-      submitBtn.disabled = false;
-      hideSecurityProgress();
-    });
-  } else {
-    // No hay archivo, enviar formulario directamente
-    fetch('/upload', {
+  // Envío final
+  try {
+    const response = await fetch('/upload', {
       method: 'POST',
       body: formData
-    })
-    .then(response => response.json())
-    .then(result => {
-      if (result.status === 'ok') {
-        showNotification('¡Solicitud enviada exitosamente!', 'success');
-        resetForm();
-      } else {
-        showNotification('Error: ' + (result.error || 'Error desconocido'), 'error');
-      }
-    })
-    .catch(error => {
-      console.error('Error enviando solicitud:', error);
-      showNotification('Error al enviar la solicitud. Por favor, inténtalo de nuevo.', 'error');
-    })
-    .finally(() => {
-      submitBtn.innerHTML = originalText;
-      submitBtn.disabled = false;
-      hideSecurityProgress();
     });
+    
+    const result = await response.json();
+    
+    if (response.ok) {
+      showNotification('✅ Solicitud enviada exitosamente', 'success');
+      resetForm();
+    } else {
+      showNotification(result.error || 'Error al enviar la solicitud', 'error');
+    }
+    
+  } catch (error) {
+    showNotification('Error de conexión al enviar la solicitud', 'error');
+  } finally {
+    hideSecurityProgress();
   }
 }
-
-// ========== FUNCIONES DE CARGA DE DATOS ==========
-
-function loadExistingComments() {
-  fetch('/data.geojson')
-    .then(response => response.json())
-    .then(data => {
-      L.geoJSON(data, {
-        pointToLayer: function(feature, latlng) {
-          return L.marker(latlng, {
-              icon: L.divIcon({
-                className: 'user-request-marker',
-                html: '<div class="marker-inner"><i class="fas fa-comment"></i></div>',
-                iconSize: [20, 20],
-                iconAnchor: [10, 20]
-              })
-          });
-        },
-        onEachFeature: function(feature, layer) {
-          if (feature.properties) {
-            layer.bindPopup(`
-              <div class="comment-popup">
-                <h4>${feature.properties.name || 'Comentario'}</h4>
-                <p><strong>Municipio:</strong> ${feature.properties.municipality || 'N/A'}</p>
-                <p><strong>Entidad:</strong> ${feature.properties.entity || 'N/A'}</p>
-                <p><strong>Comentario:</strong> ${feature.properties.comments || 'Sin comentarios'}</p>
-                <p><small><strong>Fecha:</strong> ${formatDate(feature.properties.timestamp)}</small></p>
-              </div>
-            `);
-          }
-        }
-      }).addTo(map);
-    })
-    .catch(error => {
-      console.error('Error cargando comentarios existentes:', error);
-    });
-}
-
-// Cargar comentarios existentes cuando se carga la página
-document.addEventListener('DOMContentLoaded', function() {
-  setTimeout(loadExistingComments, 1000);
-});
-
-// ========== FUNCIONES DE PROGRESO DE SEGURIDAD ==========
 
 function showSecurityProgress() {
   const progressDiv = document.getElementById('securityProgress');
   if (progressDiv) {
     progressDiv.style.display = 'block';
     
-    // Hacer scroll para asegurar que se vea el progreso
-    progressDiv.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    
-    // Solo mostrar el primer paso como activo
-    updateSecurityStep('step-upload', 'active', '⏳');
-  }
-}
-
-function continueSecurityProgress() {
-  // Completar upload y continuar con escaneo
-  updateSecurityStep('step-upload', 'completed', '✓');
-  
-  setTimeout(() => {
-    updateSecurityStep('step-clamav', 'active', '🔄');
-    setTimeout(() => updateSecurityStep('step-clamav', 'completed', '✓'), 3000);
-  }, 500);
-  
-  setTimeout(() => {
-    updateSecurityStep('step-virustotal', 'active', '🔄');
-    setTimeout(() => updateSecurityStep('step-virustotal', 'completed', '✓'), 3000);
-  }, 4000);
-  
-  setTimeout(() => {
-    updateSecurityStep('step-final', 'active', '🔄');
-    setTimeout(() => updateSecurityStep('step-final', 'completed', '✓'), 2000);
-  }, 7500);
-}
-
-function failSecurityProgress(errorMessage) {
-  // Marcar el primer paso como fallido
-  updateSecurityStep('step-upload', 'error', '❌');
-  
-  // Actualizar el texto del paso para mostrar el error
-  const uploadStep = document.getElementById('step-upload');
-  if (uploadStep) {
-    const stepText = uploadStep.querySelector('.step-text');
-    if (stepText) {
-      stepText.textContent = errorMessage || 'Archivo rechazado';
-    }
+    // Resetear todos los pasos
+    const steps = ['step-upload', 'step-clamav', 'step-virustotal', 'step-final'];
+    steps.forEach(stepId => {
+      updateSecurityStep(stepId, 'pending', '⏳');
+    });
   }
 }
 
@@ -584,6 +587,13 @@ function hideSecurityProgress() {
       steps.forEach(stepId => {
         updateSecurityStep(stepId, 'pending', '⏳');
       });
-    }, 5000); // Esperar 5 segundos antes de ocultar
+    }, 2000);
+  }
+}
+
+// Handler opcional para HTML inline (onclick) en index.html
+function handleFileSelect(input) {
+  if (input && input.files && input.files[0]) {
+    updateFileUploadDisplay(input.files[0]);
   }
 }
