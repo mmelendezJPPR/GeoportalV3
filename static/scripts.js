@@ -3,8 +3,17 @@ let map;
 let currentFeature = null;
 let mapLayers = {};
 let currentLayer = 'satellite';
+let activeOverlays = new Set(); // Capas overlay actualmente activas
+let layersControl; // Referencia al control de capas
 // Si conoces el ID exacto de la subcapa de carreteras en 'Parcelas', colócalo aquí; si no, se intenta detectar automáticamente
 const PARCELAS_ROADS_SUBLAYER_ID = null;
+
+// Configuración de zoom para activación de capas
+const LAYER_ZOOM_CONFIG = {
+  planUsos: { minZoom: 10, maxZoom: 19 },     // Plan de Usos se activa a partir de zoom 10
+  parcelas: { minZoom: 13, maxZoom: 19 },     // Parcelas se activa a partir de zoom 13 (más detallado)
+  comentarios: { minZoom: 11, maxZoom: 19 }   // Comentarios se activa a partir de zoom 11
+};
 
 // Configuración de validación de archivos (lado cliente)
 const MAX_FILE_SIZE_CLIENT = 10 * 1024 * 1024; // 10MB
@@ -61,6 +70,9 @@ document.addEventListener('DOMContentLoaded', function() {
   // Configurar capas del mapa
   setupMapLayers();
 
+  // Agregar indicador de zoom (opcional - puedes comentar si no lo quieres)
+  addZoomIndicator();
+
   // Eventos del mapa
   map.on('click', function(e) {
     // Si se hizo click en un marcador o popup, no hacer nada
@@ -75,6 +87,11 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Crear marcador temporal con las coordenadas
     createLocationMarker(e.latlng.lat, e.latlng.lng);
+  });
+
+  // Evento de cambio de zoom para activación dinámica de capas
+  map.on('zoomend', function() {
+    handleZoomBasedLayerActivation();
   });
 
   // Inicializar controles del formulario
@@ -131,26 +148,41 @@ function setupMapLayers() {
   });
 
   // Añadir logging para diagnosticar problemas de carga
-  mapLayers.planUsos.on('load', () => console.log('✅ Plan de Usos cargado correctamente'));
+  mapLayers.planUsos.on('load', () => {
+    console.log('✅ Plan de Usos cargado correctamente');
+    hideLayerLoadingIndicator('planUsos');
+  });
   mapLayers.planUsos.on('error', (e) => console.error('❌ Error en Plan de Usos:', e));
-  mapLayers.planUsos.on('requeststart', (e) => console.log('🔄 Plan de Usos - Request:', e.url));
+  mapLayers.planUsos.on('requeststart', (e) => {
+    console.log('🔄 Plan de Usos - Request:', e.url);
+    showLayerLoadingIndicator('planUsos');
+  });
 
-  mapLayers.parcelas.on('load', () => console.log('✅ Parcelas cargado correctamente'));
+  mapLayers.parcelas.on('load', () => {
+    console.log('✅ Parcelas cargado correctamente');
+    hideLayerLoadingIndicator('parcelas');
+  });
   mapLayers.parcelas.on('error', (e) => console.error('❌ Error en Parcelas:', e));
-  mapLayers.parcelas.on('requeststart', (e) => console.log('🔄 Parcelas - Request:', e.url));
+  mapLayers.parcelas.on('requeststart', (e) => {
+    console.log('🔄 Parcelas - Request:', e.url);
+    showLayerLoadingIndicator('parcelas');
+  });
 
-  mapLayers.comentarios.on('load', () => console.log('✅ Comentarios cargado correctamente'));
+  mapLayers.comentarios.on('load', () => {
+    console.log('✅ Comentarios cargado correctamente');
+    hideLayerLoadingIndicator('comentarios');
+  });
   mapLayers.comentarios.on('error', (e) => console.error('❌ Error en Comentarios:', e));
-  mapLayers.comentarios.on('requeststart', (e) => console.log('🔄 Comentarios - Request:', e.url));
+  mapLayers.comentarios.on('requeststart', (e) => {
+    console.log('🔄 Comentarios - Request:', e.url);
+    showLayerLoadingIndicator('comentarios');
+  });
 
   // Agregar base layer por defecto
   mapLayers[currentLayer].addTo(map);
 
-  // Agregar overlays por defecto (puedes ajustar cuáles se muestran inicialmente)
-  mapLayers.planUsos.addTo(map);
-  mapLayers.parcelas.addTo(map);
-  // Dejar comentarios opcionalmente apagado al inicio
-  // mapLayers.comentarios.addTo(map);
+  // NO agregar overlays automáticamente - se activarán según zoom
+  // La activación inicial se manejará en handleZoomBasedLayerActivation()
 
   // Crear control de capas: Satélite como base; las demás como overlays con checkboxes
   const baseLayers = {
@@ -164,15 +196,28 @@ function setupMapLayers() {
   };
 
   // Agregar control de capas al mapa
-  const layersControl = L.control.layers(baseLayers, overlays, {
+  layersControl = L.control.layers(baseLayers, overlays, {
     position: 'topright',
     collapsed: true
   }).addTo(map);
 
   // Diagnóstico ligero para cambios de capas
   map.on('baselayerchange', (e) => console.log('🔁 Base layer cambiado a:', e.name));
-  map.on('overlayadd', (e) => console.log('➕ Overlay activado:', e.name));
-  map.on('overlayremove', (e) => console.log('➖ Overlay desactivado:', e.name));
+  map.on('overlayadd', (e) => {
+    console.log('➕ Overlay activado:', e.name);
+    // Marcar como activo manualmente por el usuario
+    const layerKey = getLayerKeyFromName(e.name);
+    if (layerKey) activeOverlays.add(layerKey);
+  });
+  map.on('overlayremove', (e) => {
+    console.log('➖ Overlay desactivado:', e.name);
+    // Desmarcar como activo
+    const layerKey = getLayerKeyFromName(e.name);
+    if (layerKey) activeOverlays.delete(layerKey);
+  });
+
+  // Activar capas iniciales según el zoom actual
+  setTimeout(() => handleZoomBasedLayerActivation(), 100);
 }
 
 // Busca automáticamente una subcapa de "Carreteras" (o similar) en el servicio de Parcelas
@@ -193,6 +238,167 @@ async function autoSelectParcelasRoadsSublayer(dynamicLayer) {
     }
   } catch (e) {
     console.warn('⚠️ No se pudo consultar la metadata de Parcelas para ubicar "Carreteras".', e);
+  }
+}
+
+// ========== FUNCIONES DE ACTIVACIÓN DINÁMICA DE CAPAS ==========
+
+function handleZoomBasedLayerActivation() {
+  const currentZoom = map.getZoom();
+  console.log(`🔍 Zoom actual: ${currentZoom} - Verificando capas...`);
+  
+  // Verificar cada capa overlay
+  Object.keys(LAYER_ZOOM_CONFIG).forEach(layerKey => {
+    const config = LAYER_ZOOM_CONFIG[layerKey];
+    const layer = mapLayers[layerKey];
+    const isInZoomRange = currentZoom >= config.minZoom && currentZoom <= config.maxZoom;
+    const isCurrentlyActive = map.hasLayer(layer);
+    
+    if (isInZoomRange && !isCurrentlyActive) {
+      // Activar capa
+      console.log(`🟢 Activando ${layerKey} (zoom ${currentZoom} >= ${config.minZoom})`);
+      map.addLayer(layer);
+      activeOverlays.add(layerKey);
+      
+      // Actualizar control de capas para reflejar el estado
+      updateLayerControlState(layerKey, true);
+      
+    } else if (!isInZoomRange && isCurrentlyActive && !isUserActivated(layerKey)) {
+      // Desactivar capa solo si no fue activada manualmente por el usuario
+      console.log(`🔴 Desactivando ${layerKey} (zoom ${currentZoom} < ${config.minZoom})`);
+      map.removeLayer(layer);
+      activeOverlays.delete(layerKey);
+      
+      // Actualizar control de capas para reflejar el estado
+      updateLayerControlState(layerKey, false);
+    }
+  });
+}
+
+function getLayerKeyFromName(layerName) {
+  const nameMapping = {
+    '🗺️ Plan de Usos': 'planUsos',
+    '🏘️ Parcelas': 'parcelas',
+    '💬 Comentarios': 'comentarios'
+  };
+  return nameMapping[layerName] || null;
+}
+
+function isUserActivated(layerKey) {
+  // Por simplicidad, consideramos que si está en activeOverlays fue activado por zoom o usuario
+  // En una implementación más avanzada, podrías distinguir entre activación automática y manual
+  return activeOverlays.has(layerKey);
+}
+
+function updateLayerControlState(layerKey, isActive) {
+  // Esta función actualiza visualmente el control de capas
+  // Leaflet maneja esto automáticamente cuando se agregan/remueven capas
+  // Pero podemos agregar indicadores adicionales si es necesario
+  
+  if (isActive) {
+    console.log(`✅ ${layerKey} marcado como activo en control`);
+  } else {
+    console.log(`❌ ${layerKey} marcado como inactivo en control`);
+  }
+}
+
+// Función para mostrar información de zoom en tiempo real (opcional)
+function addZoomIndicator() {
+  const zoomIndicator = L.control({ position: 'bottomleft' });
+  
+  zoomIndicator.onAdd = function(map) {
+    const div = L.DomUtil.create('div', 'zoom-indicator');
+    div.style.backgroundColor = 'rgba(255, 255, 255, 0.8)';
+    div.style.padding = '5px 10px';
+    div.style.borderRadius = '4px';
+    div.style.fontSize = '12px';
+    div.style.fontWeight = 'bold';
+    div.innerHTML = `Zoom: ${map.getZoom()}`;
+    
+    map.on('zoomend', function() {
+      div.innerHTML = `Zoom: ${map.getZoom()}`;
+    });
+    
+    return div;
+  };
+  
+  zoomIndicator.addTo(map);
+}
+
+// ========== INDICADORES DE CARGA DE CAPAS ==========
+
+function showLayerLoadingIndicator(layerKey) {
+  // Crear o actualizar un indicador de carga en la esquina superior derecha
+  let loadingContainer = document.getElementById('layer-loading-indicators');
+  
+  if (!loadingContainer) {
+    loadingContainer = document.createElement('div');
+    loadingContainer.id = 'layer-loading-indicators';
+    loadingContainer.style.cssText = `
+      position: fixed;
+      top: 80px;
+      right: 20px;
+      z-index: 1000;
+      pointer-events: none;
+    `;
+    document.body.appendChild(loadingContainer);
+  }
+  
+  // Crear indicador específico para esta capa
+  const indicatorId = `loading-${layerKey}`;
+  let indicator = document.getElementById(indicatorId);
+  
+  if (!indicator) {
+    indicator = document.createElement('div');
+    indicator.id = indicatorId;
+    indicator.style.cssText = `
+      background: rgba(99, 102, 241, 0.9);
+      color: white;
+      padding: 8px 12px;
+      margin-bottom: 8px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+      backdrop-filter: blur(10px);
+      animation: slideInFromRight 0.3s ease-out;
+    `;
+    
+    const layerNames = {
+      'planUsos': 'Plan de Usos',
+      'parcelas': 'Parcelas',
+      'comentarios': 'Comentarios'
+    };
+    
+    indicator.innerHTML = `
+      <div style="width: 12px; height: 12px; border: 2px solid rgba(255,255,255,0.3); border-top: 2px solid white; border-radius: 50%; animation: spin 1s linear infinite;"></div>
+      Cargando ${layerNames[layerKey] || layerKey}...
+    `;
+    
+    loadingContainer.appendChild(indicator);
+  }
+}
+
+function hideLayerLoadingIndicator(layerKey) {
+  const indicatorId = `loading-${layerKey}`;
+  const indicator = document.getElementById(indicatorId);
+  
+  if (indicator) {
+    indicator.style.animation = 'slideOutToRight 0.3s ease-in';
+    setTimeout(() => {
+      if (indicator.parentNode) {
+        indicator.parentNode.removeChild(indicator);
+      }
+      
+      // Limpiar contenedor si está vacío
+      const container = document.getElementById('layer-loading-indicators');
+      if (container && container.children.length === 0) {
+        container.remove();
+      }
+    }, 300);
   }
 }
 
