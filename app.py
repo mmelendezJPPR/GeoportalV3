@@ -455,8 +455,12 @@ app.config.update({
     'DEBUG': config['DEBUG'],
     'SESSION_TYPE': 'filesystem',  # Usar filesystem para sesiones
     'SESSION_PERMANENT': False,
-    'SESSION_USE_SIGNER': True
+    'SESSION_USE_SIGNER': True,
+    'SESSION_FILE_DIR': os.path.join(os.getcwd(), 'flask_session')  # Directorio para archivos de sesión
 })
+
+# Asegurarse de que el directorio de sesiones existe
+os.makedirs(app.config['SESSION_FILE_DIR'], exist_ok=True)
 
 # Inicializar Flask-Session
 Session(app)
