@@ -1,101 +1,102 @@
-# 🚀 Guía de Configuración en Render
+# 🚀 Configuración Simple en Render
 
-## Problema: No puedo iniciar sesión en Render
+## ✅ Sistema de Login Simplificado (Sin Base de Datos de Usuarios)
 
-La base de datos SQLite es local y no se sube a GitHub. Necesitas crear un usuario administrador directamente en el servidor de Render.
+Tu aplicación ahora usa un **sistema de login simple** con credenciales configuradas mediante **variables de entorno**. 
+**No necesitas crear usuarios en SQLite ni PostgreSQL.**
 
-## Solución: Crear Usuario Administrador en Render
+---
 
-### Opción 1: Usar el Shell de Render (RECOMENDADO)
+## 📝 Configurar Credenciales en Render
 
-1. **Ve a tu Dashboard de Render**
-   - https://dashboard.render.com/
-   - Selecciona tu servicio "geoportalv3"
+### Paso 1: Ve a tu Dashboard de Render
+1. Abre https://dashboard.render.com/
+2. Selecciona tu servicio **"geoportalv3"**
 
-2. **Abre el Shell**
-   - En el menú lateral, haz clic en **"Shell"**
-   - Esto abrirá una terminal en el servidor
+### Paso 2: Configurar Variables de Entorno
+1. En el menú lateral, haz clic en **"Environment"**
+2. Agrega estas variables:
 
-3. **Ejecuta el script de creación de usuario**
-   ```bash
-   python create_admin.py admin admin@geoportal.pr TuContraseñaSegura123
-   ```
-   
-   Reemplaza:
-   - `admin` - con tu nombre de usuario deseado
-   - `admin@geoportal.pr` - con tu email
-   - `TuContraseñaSegura123` - con una contraseña segura
-
-4. **Verifica que se creó correctamente**
-   Deberías ver un mensaje como:
-   ```
-   ✅ Usuario administrador creado exitosamente!
-      ID: 1
-      Usuario: admin
-      Email: admin@geoportal.pr
-   ```
-
-5. **Intenta iniciar sesión**
-   - Ve a https://geoportalv3.onrender.com/login
-   - Usa las credenciales que acabas de crear
-
-### Opción 2: Modo Interactivo
-
-Si prefieres el modo interactivo, ejecuta:
-```bash
-python create_admin.py
+```
+ADMIN_USERNAME = tu_usuario_admin
+ADMIN_PASSWORD = tu_contraseña_segura_123
+SECRET_KEY = clave-secreta-para-sesiones-cambiar
 ```
 
-Y sigue las instrucciones en pantalla.
-
-### Opción 3: Crear Localmente y Subir (NO RECOMENDADO)
-
-⚠️ **No recomendado** porque la base de datos en Render se borra en cada despliegue.
-
-## Verificación
-
-Una vez creado el usuario, deberías poder:
-1. Ir a https://geoportalv3.onrender.com/login
-2. Ingresar tu username y password
-3. Acceder al geoportal
-
-## Solución de Problemas
-
-### Error: "ModuleNotFoundError: No module named 'werkzeug'"
-No debería ocurrir porque está en requirements.txt, pero si sucede:
-```bash
-pip install werkzeug
-python create_admin.py admin admin@example.com password123
+**Ejemplo:**
+```
+ADMIN_USERNAME = AdminJP
+ADMIN_PASSWORD = GeoportalPR2025!
+SECRET_KEY = jp-geoportal-secret-key-2025-render
 ```
 
-### Error: "database is locked"
-Si la base de datos está bloqueada, espera unos segundos y vuelve a intentar.
+3. Haz clic en **"Save Changes"**
+4. El servicio se **redesplegará automáticamente** (2-3 minutos)
 
-### Error: "El usuario ya existe"
-Si el usuario ya existe, puedes:
-1. Usar un nombre de usuario diferente
-2. O eliminar el usuario existente primero:
+### Paso 3: ¡Listo! Prueba el Login
+1. Ve a https://geoportalv3.onrender.com/login
+2. Ingresa el usuario y contraseña que configuraste
+3. ¡Deberías poder entrar! 🎉
+
+---
+
+## 🔐 Recomendaciones de Seguridad
+
+### Contraseña Segura
+✅ **Usa una contraseña fuerte:**
+- Mínimo 12 caracteres
+- Combina mayúsculas, minúsculas, números y símbolos
+- Ejemplo: `Geoportal#PR_2025!Admin`
+
+### Secret Key
+✅ **Genera una clave secreta aleatoria:**
 ```bash
-python -c "import sqlite3; conn = sqlite3.connect('database/usuarios.db'); conn.execute('DELETE FROM users WHERE username=\"admin\"'); conn.commit()"
+# En tu terminal local:
+python -c "import secrets; print(secrets.token_urlsafe(32))"
 ```
+Copia el resultado y úsalo como `SECRET_KEY`
 
-## Alternativa: Base de Datos Externa
+---
 
-Para producción, considera usar una base de datos externa como:
-- **PostgreSQL** (Render ofrece PostgreSQL gratis)
-- **MySQL**
-- **MongoDB**
+## 🆘 Solución de Problemas
 
-Esto evitará que pierdas los datos en cada despliegue.
+### No puedo iniciar sesión
+1. Verifica que las variables `ADMIN_USERNAME` y `ADMIN_PASSWORD` estén configuradas en Render
+2. Asegúrate de que no haya espacios extra en el username o password
+3. Revisa los logs en Render: Dashboard → tu servicio → "Logs"
+4. Busca mensajes como: `⚠️ Intento de login fallido`
 
-### Migrar a PostgreSQL en Render
+### El sitio me redirige a /login constantemente
+- Verifica que `SECRET_KEY` esté configurada
+- Prueba en modo incógnito (las cookies pueden estar corruptas)
+- Limpia las cookies del navegador para el sitio
 
-1. Crea una base de datos PostgreSQL en Render
-2. Instala `psycopg2-binary` en requirements.txt
-3. Modifica el código para usar PostgreSQL en lugar de SQLite
-4. Configura la variable de entorno `DATABASE_URL`
+---
 
-## Notas Importantes
+## 📊 Base de Datos de Solicitudes
+
+### SQLite (Actual - TEMPORAL)
+- Las solicitudes de usuarios se guardan en SQLite
+- ⚠️ **Se pierden en cada redespliegue**
+- Solo para desarrollo/testing
+
+### PostgreSQL (Recomendado para Producción)
+Si quieres que las solicitudes sean permanentes:
+1. En Render: Dashboard → New → PostgreSQL
+2. Conecta la base de datos PostgreSQL a tu servicio
+3. Render configurará automáticamente `DATABASE_URL`
+4. El código detectará PostgreSQL y lo usará automáticamente
+
+---
+
+## 📞 Contacto
+
+Si tienes problemas, revisa los logs en:
+https://dashboard.render.com/ → tu servicio → "Logs"
+
+Busca mensajes de error o líneas que digan:
+- `✅ Login exitoso` → Login funcionó correctamente
+- `⚠️ Intento de login fallido` → Credenciales incorrectas
 
 ⚠️ **IMPORTANTE**: La base de datos SQLite en Render es **temporal**. Se borra cada vez que:
 - Haces un nuevo despliegue

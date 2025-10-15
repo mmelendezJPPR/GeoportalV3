@@ -3,10 +3,19 @@ from flask_session import Session
 import os, uuid, sqlite3, hashlib, logging, time, sys
 from datetime import datetime
 from werkzeug.utils import secure_filename
-from werkzeug.security import generate_password_hash, check_password_hash
 import PyPDF2
 import pdfplumber
 import io
+
+# Cargar variables de entorno desde archivo .env (si existe)
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+    logging.info("✅ Variables de entorno cargadas desde .env")
+except ImportError:
+    logging.info("ℹ️ python-dotenv no disponible, usando variables de entorno del sistema")
+except Exception as e:
+    logging.warning(f"⚠️ No se pudo cargar .env: {e}")
 
 # Importar módulo de seguridad avanzada
 try:
@@ -108,7 +117,8 @@ def init_database():
             entity TEXT,
             text TEXT,
             file_path TEXT,
-            created_at TEXT
+            created_at TEXT,
+            status TEXT DEFAULT 'new'
         )''')
         
         # Verificar si necesitamos agregar las nuevas columnas (para compatibilidad con DBs existentes)
@@ -133,43 +143,10 @@ def init_database():
         logging.error(f"Error inicializando base de datos: {e}")
         return False
 
-def init_users_database():
-    """Initialize users database - create directories and tables if they don't exist"""
-    try:
-        # Crear directorio de la base de datos si no existe
-        db_dir = os.path.dirname(USERS_DB_FILE)
-        if db_dir:
-            os.makedirs(db_dir, exist_ok=True)
-        
-        # Crear tabla si no existe
-        conn = sqlite3.connect(USERS_DB_FILE)
-        conn.execute('''CREATE TABLE IF NOT EXISTS users (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            username TEXT UNIQUE NOT NULL,
-            email TEXT UNIQUE NOT NULL,
-            password_hash TEXT NOT NULL,
-            created_at TEXT NOT NULL
-        )''')
-        
-        # Crear índice en username para búsquedas rápidas
-        conn.execute('CREATE INDEX IF NOT EXISTS idx_username ON users(username)')
-        
-        conn.commit()
-        conn.close()
-        return True
-    except Exception as e:
-        logging.error(f"Error inicializando base de datos de usuarios: {e}")
-        return False
-
 def get_db_connection():
     """Get database connection, initializing if necessary"""
     init_database()  # Asegurar que la DB existe
     return sqlite3.connect(DB_FILE)
-
-def get_users_db_connection():
-    """Get users database connection, initializing if necessary"""
-    init_users_database()  # Asegurar que la DB existe
-    return sqlite3.connect(USERS_DB_FILE)
 
 def validate_pdf_with_text(file):
     """
@@ -497,6 +474,10 @@ def login_required(f):
 
 @app.route("/login", methods=['GET', 'POST'])
 def login():
+    """
+    Sistema de login simple usando variables de entorno
+    No requiere base de datos de usuarios
+    """
     try:
         if request.method == 'POST':
             username = request.form.get('username')
@@ -506,24 +487,25 @@ def login():
                 flash('Usuario y contraseña son requeridos.', 'error')
                 return render_template('login.html')
             
-            conn = get_users_db_connection()
-            cursor = conn.cursor()
-            cursor.execute('SELECT id, username, password_hash FROM users WHERE username = ?', (username,))
-            user = cursor.fetchone()
-            conn.close()
+            # Credenciales desde variables de entorno
+            admin_username = os.getenv('ADMIN_USERNAME', 'admin')
+            admin_password = os.getenv('ADMIN_PASSWORD', 'admin123')
             
-            if user and check_password_hash(user[2], password):
-                session['user_id'] = user[0]
-                session['username'] = user[1]
+            # Verificar credenciales
+            if username == admin_username and password == admin_password:
+                session['user_id'] = 1
+                session['username'] = username
                 flash('Inicio de sesión exitoso.', 'success')
+                logging.info(f"✅ Login exitoso: {username}")
                 return redirect(url_for('index'))
             else:
                 flash('Usuario o contraseña incorrectos.', 'error')
+                logging.warning(f"⚠️ Intento de login fallido: {username}")
         
         return render_template('login.html')
     except Exception as e:
-        print(f"Error en login: {e}")
-        flash(f'Error interno del servidor: {str(e)}', 'error')
+        logging.error(f"Error en login: {e}")
+        flash('Error interno del servidor.', 'error')
         return render_template('login.html')
 
 @app.route("/logout")
