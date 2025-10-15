@@ -936,9 +936,12 @@ if __name__ == "__main__":
     os.makedirs('logs', exist_ok=True)
     os.makedirs('database', exist_ok=True)
     
+    # Obtener puerto desde variable de entorno (Render usa PORT)
+    port = int(os.getenv('PORT', config['PORT']))
+    
     # Ejecutar la aplicación
     app.run(
         host=config['HOST'], 
-        port=config['PORT'], 
+        port=port, 
         debug=config['DEBUG']
     )
