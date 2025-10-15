@@ -41,6 +41,8 @@ Thumbs.db
 
 # Database
 database/solicitudes.db
+database/usuarios.db
+database/*.db-*
 
 # Logs
 logs/
@@ -48,6 +50,15 @@ logs/
 
 # Uploads (archivos subidos por usuarios)
 uploads/
+
+# Flask sessions (archivos temporales sensibles)
+flask_session/
+
+# Development and test files
+test_redirect.py
+fake_pdf_document.pdf
+check_db.py
+create_test_user.py
 
 # Temporary files
 temp/

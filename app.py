@@ -1,7 +1,9 @@
-from flask import Flask, request, jsonify, send_from_directory, abort, render_template, make_response
+from flask import Flask, request, jsonify, send_from_directory, abort, render_template, make_response, session, redirect, url_for, flash
+from flask_session import Session
 import os, uuid, sqlite3, hashlib, logging, time, sys
 from datetime import datetime
 from werkzeug.utils import secure_filename
+from werkzeug.security import generate_password_hash, check_password_hash
 import PyPDF2
 import pdfplumber
 import io
@@ -28,6 +30,7 @@ def get_config():
         'UPLOAD_FOLDER': os.getenv('UPLOAD_FOLDER', 'uploads'),
         'GEOJSON_FILE': os.getenv('GEOJSON_FILE', 'data.geojson'),
         'DB_FILE': os.getenv('DATABASE_URL', 'database/solicitudes.db').replace('sqlite:///', ''),
+        'USERS_DB_FILE': os.getenv('USERS_DATABASE_URL', 'database/usuarios.db').replace('sqlite:///', ''),
         'HOST': os.getenv('HOST', '127.0.0.1'),
         'PORT': int(os.getenv('PORT', 5000)),
         'DEBUG': os.getenv('FLASK_DEBUG', 'False').lower() == 'true',
@@ -38,6 +41,7 @@ config = get_config()
 UPLOAD_FOLDER = config['UPLOAD_FOLDER']
 GEOJSON_FILE = config['GEOJSON_FILE']
 DB_FILE = config['DB_FILE']
+USERS_DB_FILE = config['USERS_DB_FILE']
 
 # Configuración de seguridad para archivos
 MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB
@@ -129,10 +133,43 @@ def init_database():
         logging.error(f"Error inicializando base de datos: {e}")
         return False
 
+def init_users_database():
+    """Initialize users database - create directories and tables if they don't exist"""
+    try:
+        # Crear directorio de la base de datos si no existe
+        db_dir = os.path.dirname(USERS_DB_FILE)
+        if db_dir:
+            os.makedirs(db_dir, exist_ok=True)
+        
+        # Crear tabla si no existe
+        conn = sqlite3.connect(USERS_DB_FILE)
+        conn.execute('''CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT UNIQUE NOT NULL,
+            email TEXT UNIQUE NOT NULL,
+            password_hash TEXT NOT NULL,
+            created_at TEXT NOT NULL
+        )''')
+        
+        # Crear índice en username para búsquedas rápidas
+        conn.execute('CREATE INDEX IF NOT EXISTS idx_username ON users(username)')
+        
+        conn.commit()
+        conn.close()
+        return True
+    except Exception as e:
+        logging.error(f"Error inicializando base de datos de usuarios: {e}")
+        return False
+
 def get_db_connection():
     """Get database connection, initializing if necessary"""
     init_database()  # Asegurar que la DB existe
     return sqlite3.connect(DB_FILE)
+
+def get_users_db_connection():
+    """Get users database connection, initializing if necessary"""
+    init_users_database()  # Asegurar que la DB existe
+    return sqlite3.connect(USERS_DB_FILE)
 
 def validate_pdf_with_text(file):
     """
@@ -415,8 +452,14 @@ app.config.update({
     'SECRET_KEY': config['SECRET_KEY'],
     'UPLOAD_FOLDER': UPLOAD_FOLDER,
     'MAX_CONTENT_LENGTH': MAX_FILE_SIZE,
-    'DEBUG': config['DEBUG']
+    'DEBUG': config['DEBUG'],
+    'SESSION_TYPE': 'filesystem',  # Usar filesystem para sesiones
+    'SESSION_PERMANENT': False,
+    'SESSION_USE_SIGNER': True
 })
+
+# Inicializar Flask-Session
+Session(app)
 
 # Crear directorios necesarios al inicializar la app
 def create_directories():
@@ -437,8 +480,58 @@ def create_directories():
 # Crear directorios al importar el módulo
 create_directories()
 
+def login_required(f):
+    """Decorator to require login for protected routes"""
+    from functools import wraps
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if 'user_id' not in session:
+            flash('Debes iniciar sesión para acceder a esta página.', 'error')
+            return redirect(url_for('login'))
+        return f(*args, **kwargs)
+    return decorated_function
+
+@app.route("/login", methods=['GET', 'POST'])
+def login():
+    try:
+        if request.method == 'POST':
+            username = request.form.get('username')
+            password = request.form.get('password')
+            
+            if not username or not password:
+                flash('Usuario y contraseña son requeridos.', 'error')
+                return render_template('login.html')
+            
+            conn = get_users_db_connection()
+            cursor = conn.cursor()
+            cursor.execute('SELECT id, username, password_hash FROM users WHERE username = ?', (username,))
+            user = cursor.fetchone()
+            conn.close()
+            
+            if user and check_password_hash(user[2], password):
+                session['user_id'] = user[0]
+                session['username'] = user[1]
+                flash('Inicio de sesión exitoso.', 'success')
+                return redirect(url_for('index'))
+            else:
+                flash('Usuario o contraseña incorrectos.', 'error')
+        
+        return render_template('login.html')
+    except Exception as e:
+        print(f"Error en login: {e}")
+        flash(f'Error interno del servidor: {str(e)}', 'error')
+        return render_template('login.html')
+
+@app.route("/logout")
+def logout():
+    session.clear()
+    flash('Sesión cerrada exitosamente.', 'success')
+    return redirect(url_for('index'))
+
 @app.route("/")
 def index():
+    if 'user_id' not in session:
+        return redirect('/login')
     response = make_response(render_template("index.html"))
     response.headers['Content-Type'] = 'text/html; charset=utf-8'
     return response
@@ -451,6 +544,7 @@ def test():
     return response
 
 @app.route("/admin")
+@login_required
 def admin_panel():
     return render_template("adminPanel.html")
 
@@ -666,6 +760,11 @@ def css_file():
 @app.route('/static/scripts.js')
 def js_file():
     return send_from_directory('static', 'scripts.js', mimetype='application/javascript')
+
+# Ruta para favicon.ico
+@app.route('/favicon.ico')
+def favicon():
+    return send_from_directory('static', 'JP_V2.png', mimetype='image/png')
 
 # Ruta para escanear archivo ANTES de envío
 @app.route('/scan-file', methods=['POST'])
